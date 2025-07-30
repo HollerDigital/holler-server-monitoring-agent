@@ -73,10 +73,10 @@ app = Flask(__name__)
 
 # Rate limiting
 limiter = Limiter(
-    app,
     key_func=get_remote_address,
     default_limits=[SECURITY_CONFIG['rate_limit']]
 )
+limiter.init_app(app)
 
 # Security utilities
 class SecurityManager:
