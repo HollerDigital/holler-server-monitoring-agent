@@ -198,6 +198,15 @@ def get_token():
         'expires_in': SECURITY_CONFIG['token_expiry_hours'] * 3600
     })
 
+@app.route('/health', methods=['GET'])
+def simple_health_check():
+    """Simple health check without authentication for basic connectivity testing"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'version': '1.0.0'
+    })
+
 @app.route('/api/health', methods=['GET'])
 @require_auth
 def health_check():
