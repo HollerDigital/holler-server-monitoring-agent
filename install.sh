@@ -132,8 +132,9 @@ if [ ! -f "$CONFIG_DIR/.env" ]; then
     JWT_SECRET=$(openssl rand -base64 32)
     API_KEY=$(openssl rand -hex 32)
     
-    sed -i "s/your-super-secure-jwt-secret-key-here/$JWT_SECRET/" "$CONFIG_DIR/.env"
-    sed -i "s/your-api-key-here/$API_KEY/" "$CONFIG_DIR/.env"
+    # Use | as delimiter to avoid conflicts with / in base64 strings
+    sed -i "s|your-super-secure-jwt-secret-key-here|$JWT_SECRET|" "$CONFIG_DIR/.env"
+    sed -i "s|your-api-key-here|$API_KEY|" "$CONFIG_DIR/.env"
     
     echo -e "${GREEN}Environment file created at $CONFIG_DIR/.env${NC}"
     echo -e "${YELLOW}Please edit $CONFIG_DIR/.env to configure your settings${NC}"
