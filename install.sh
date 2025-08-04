@@ -95,10 +95,19 @@ if ! id "$SERVICE_USER" &>/dev/null; then
     exit 1
 fi
 
-# Set permissions
+# Get the user's primary group
+USER_GROUP=$(id -gn "$SERVICE_USER" 2>/dev/null)
+if [ -z "$USER_GROUP" ]; then
+    echo -e "${RED}Cannot determine primary group for user $SERVICE_USER${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}User $SERVICE_USER primary group: $USER_GROUP${NC}"
+
+# Set permissions using the actual primary group
 echo -e "${YELLOW}Setting permissions...${NC}"
-chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
-chown -R "$SERVICE_USER:$SERVICE_USER" "$LOG_DIR"
+chown -R "$SERVICE_USER:$USER_GROUP" "$INSTALL_DIR"
+chown -R "$SERVICE_USER:$USER_GROUP" "$LOG_DIR"
 
 # Copy application files
 echo -e "${YELLOW}Installing application files...${NC}"
