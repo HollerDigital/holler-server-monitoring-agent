@@ -7,8 +7,8 @@ const winston = require('winston');
 const DailyRotateFile = require('winston-daily-rotate-file');
 const path = require('path');
 
-// Create logs directory if it doesn't exist
-const logDir = path.join(__dirname, '../../logs');
+// Use system log directory (created during installation)
+const logDir = process.env.LOG_DIR || '/var/log/gridpane-manager';
 
 // Define log format
 const logFormat = winston.format.combine(
