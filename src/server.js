@@ -14,7 +14,7 @@ const logger = require('./utils/logger');
 const authRoutes = require('./routes/auth');
 const monitoringRoutes = require('./routes/monitoring');
 const controlRoutes = require('./routes/control');
-const { authenticateToken } = require('./middleware/auth');
+const { authenticateToken, authenticateEither, authenticateApiKey } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -67,8 +67,8 @@ app.get('/api/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
-app.use('/api/monitoring', authenticateToken, monitoringRoutes);
-app.use('/api/control', authenticateToken, controlRoutes);
+app.use('/api/monitoring', authenticateApiKey, monitoringRoutes);
+app.use('/api/control', authenticateEither, controlRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
