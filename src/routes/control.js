@@ -20,20 +20,20 @@ router.post('/restart/nginx', async (req, res) => {
   try {
     logger.logSystemEvent('NGINX_RESTART_REQUESTED', { ip: req.ip, user: req.user?.id });
 
-    // Check if nginx is installed and running
-    await execAsync('systemctl is-enabled nginx');
+    // Check if GridPane CLI is available
+    await execAsync('which gp');
     
-    // Restart nginx
-    const { stdout, stderr } = await execAsync('sudo systemctl restart nginx');
+    // Restart nginx using GridPane CLI
+    const { stdout, stderr } = await execAsync('gp ngx -restart');
     
-    // Verify restart was successful
-    await execAsync('systemctl is-active nginx');
+    // GridPane CLI handles verification internally
 
     logger.logSystemEvent('NGINX_RESTART_SUCCESS', { ip: req.ip, user: req.user?.id });
 
     res.json({
       success: true,
-      message: 'Nginx restarted successfully',
+      message: 'Nginx restarted successfully using GridPane CLI',
+      output: stdout,
       timestamp: new Date().toISOString()
     });
 
@@ -60,39 +60,24 @@ router.post('/restart/mysql', async (req, res) => {
   try {
     logger.logSystemEvent('MYSQL_RESTART_REQUESTED', { ip: req.ip, user: req.user?.id });
 
-    // Try common MySQL service names
-    const mysqlServices = ['mysql', 'mysqld', 'mariadb'];
-    let activeService = null;
-
-    for (const service of mysqlServices) {
-      try {
-        await execAsync(`systemctl is-enabled ${service}`);
-        activeService = service;
-        break;
-      } catch (e) {
-        // Service not found, try next
-      }
-    }
-
-    if (!activeService) {
-      throw new Error('MySQL service not found');
-    }
-
-    // Restart MySQL
-    await execAsync(`sudo systemctl restart ${activeService}`);
+    // Check if GridPane CLI is available
+    await execAsync('which gp');
     
-    // Verify restart was successful
-    await execAsync(`systemctl is-active ${activeService}`);
+    // Restart MySQL using GridPane CLI
+    const { stdout, stderr } = await execAsync('gp mysql -restart');
+    
+    // GridPane CLI handles verification internally
 
     logger.logSystemEvent('MYSQL_RESTART_SUCCESS', { 
-      service: activeService,
+      method: 'gridpane-cli',
       ip: req.ip, 
       user: req.user?.id 
     });
 
     res.json({
       success: true,
-      message: `MySQL (${activeService}) restarted successfully`,
+      message: 'MySQL restarted successfully using GridPane CLI',
+      output: stdout,
       timestamp: new Date().toISOString()
     });
 
