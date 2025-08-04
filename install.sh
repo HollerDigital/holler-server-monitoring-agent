@@ -151,7 +151,7 @@ Wants=network.target
 [Service]
 Type=simple
 User=$SERVICE_USER
-Group=$SERVICE_USER
+Group=$USER_GROUP
 WorkingDirectory=$INSTALL_DIR
 ExecStart=/usr/bin/node src/server.js
 EnvironmentFile=$CONFIG_DIR/.env
