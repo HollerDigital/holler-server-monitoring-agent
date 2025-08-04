@@ -62,19 +62,41 @@ fi
 
 echo -e "${GREEN}Node.js $(node --version) found${NC}"
 
-# Create service user
-if ! id "$SERVICE_USER" &>/dev/null; then
-    echo -e "${YELLOW}Creating service user: $SERVICE_USER${NC}"
-    useradd --system --shell /bin/false --home-dir "$INSTALL_DIR" --create-home "$SERVICE_USER"
-fi
-
-# Create directories
+# Create directories first
 echo -e "${YELLOW}Creating directories...${NC}"
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$LOG_DIR"
 mkdir -p "$CONFIG_DIR"
 
+# Create service user
+if ! id "$SERVICE_USER" &>/dev/null; then
+    echo -e "${YELLOW}Creating service user: $SERVICE_USER${NC}"
+    # Create user without home directory first, then set home
+    if useradd --system --shell /bin/false --no-create-home "$SERVICE_USER"; then
+        echo -e "${GREEN}Service user created successfully${NC}"
+        # Set the home directory manually
+        usermod --home "$INSTALL_DIR" "$SERVICE_USER"
+    else
+        echo -e "${RED}Failed to create service user. Checking if user exists...${NC}"
+        if id "$SERVICE_USER" &>/dev/null; then
+            echo -e "${YELLOW}User $SERVICE_USER already exists, continuing...${NC}"
+        else
+            echo -e "${RED}Failed to create or find service user${NC}"
+            exit 1
+        fi
+    fi
+else
+    echo -e "${GREEN}Service user $SERVICE_USER already exists${NC}"
+fi
+
+# Verify user exists before setting permissions
+if ! id "$SERVICE_USER" &>/dev/null; then
+    echo -e "${RED}Service user $SERVICE_USER does not exist. Cannot set permissions.${NC}"
+    exit 1
+fi
+
 # Set permissions
+echo -e "${YELLOW}Setting permissions...${NC}"
 chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
 chown -R "$SERVICE_USER:$SERVICE_USER" "$LOG_DIR"
 
