@@ -23,8 +23,8 @@ router.post('/restart/nginx', async (req, res) => {
     // Check if GridPane CLI is available
     await execAsync('which gp');
     
-    // Restart nginx using GridPane CLI
-    const { stdout, stderr } = await execAsync('gp ngx -restart');
+    // Restart nginx using GridPane CLI (requires root privileges)
+    const { stdout, stderr } = await execAsync('sudo gp ngx -restart');
     
     // GridPane CLI handles verification internally
 
@@ -63,8 +63,8 @@ router.post('/restart/mysql', async (req, res) => {
     // Check if GridPane CLI is available
     await execAsync('which gp');
     
-    // Restart MySQL using GridPane CLI
-    const { stdout, stderr } = await execAsync('gp mysql -restart');
+    // Restart MySQL using GridPane CLI (requires root privileges)
+    const { stdout, stderr } = await execAsync('sudo gp mysql -restart');
     
     // GridPane CLI handles verification internally
 
