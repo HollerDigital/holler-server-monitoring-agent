@@ -60,7 +60,7 @@ sudo ./install.sh
 
 ## Configuration
 
-The backend service runs on port 3000 by default and requires JWT authentication for all endpoints except health checks. Configuration is managed through environment variables in `/etc/gridpane-manager/.env`.
+The backend service runs on port 3000 by default and uses API key authentication for all endpoints except health checks. Configuration is managed through environment variables in `/etc/gridpane-manager/.env`.
 
 ### Environment Variables
 
@@ -70,11 +70,9 @@ PORT=3000
 NODE_ENV=production
 
 # Authentication
-JWT_SECRET=your-secure-jwt-secret-here
-JWT_EXPIRES_IN=24h
+API_KEY=your-secure-api-key-here
 
 # GridPane Integration
-GRIDPANE_API_TOKEN=your-gridpane-api-token
 GRIDPANE_CLI_PATH=/usr/local/bin/gp
 
 # Monitoring
@@ -82,27 +80,36 @@ METRICS_INTERVAL=30000
 ALERT_THRESHOLDS_CPU=80
 ALERT_THRESHOLDS_MEMORY=85
 ALERT_THRESHOLDS_DISK=90
+
+# Logging
+LOG_LEVEL=info
+LOG_DIR=/var/log/gridpane-manager
 ```
 
 ## API Endpoints
 
 ### Authentication
-```bash
-# Login with GridPane credentials
-curl -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "your-username", "password": "your-password"}'
-```
+The API uses API key authentication. Include the API key in the `X-API-Key` header for all requests except health checks.
 
 ### Health Check (No Auth Required)
 ```bash
-curl http://localhost:3000/api/health
+curl https://your-server.com/health
 ```
 
-### System Metrics (Auth Required)
+Response:
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-08-04T21:43:15.669Z",
+  "version": "2.0.0",
+  "service": "GridPane Manager Backend API"
+}
+```
+
+### System Metrics (API Key Required)
 ```bash
-curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  http://localhost:3000/api/metrics
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://your-server.com/api/metrics
 ```
 
 Response format:
@@ -110,52 +117,83 @@ Response format:
 {
   "timestamp": "2025-08-04T17:30:00Z",
   "cpu": {
-    "usage_percent": 15.2,
-    "load_average": [0.5, 0.8, 1.2]
+    "usage": 15.2,
+    "cores": 4
   },
   "memory": {
-    "usage_percent": 45.8,
-    "total_gb": 16.0,
-    "available_gb": 8.7
+    "usage": 45.8,
+    "total": 17179869184,
+    "free": 9289748480
   },
-  "disk": {
-    "/": {
-      "usage_percent": 67.3,
-      "total_gb": 50.0,
-      "available_gb": 16.4
+  "disk": [
+    {
+      "mount": "/",
+      "usage": 67.3,
+      "size": 53687091200,
+      "available": 17592186044416
     }
+  ],
+  "load": {
+    "avg1": 0.5,
+    "avg5": 0.8,
+    "avg15": 1.2
   },
-  "network": {
-    "bytes_sent": 1024000,
-    "bytes_recv": 2048000
-  }
+  "uptime": 86400
 }
 ```
 
-### Service Control (Auth Required)
+### Service Control (API Key Required)
+All service control operations use GridPane CLI commands for proper system integration.
+
 ```bash
-# Restart nginx
-curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  http://localhost:3000/api/services/nginx/restart
+# Restart nginx using GridPane CLI
+curl -X POST -H "X-API-Key: YOUR_API_KEY" \
+  https://your-server.com/api/control/restart/nginx
 
-# Restart MySQL
-curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  http://localhost:3000/api/services/mysql/restart
+# Restart MySQL using GridPane CLI
+curl -X POST -H "X-API-Key: YOUR_API_KEY" \
+  https://your-server.com/api/control/restart/mysql
 
-# Restart PHP-FPM
-curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  http://localhost:3000/api/services/php-fpm/restart
+# Restart entire server (requires confirmation)
+curl -X POST -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"confirm": "yes"}' \
+  https://your-server.com/api/control/restart/server
 ```
 
-### Cache Management (Auth Required)
+Response format:
+```json
+{
+  "success": true,
+  "message": "Nginx restarted successfully using GridPane CLI",
+  "output": "nginx: configuration file test successful\nnginx restarted",
+  "timestamp": "2025-08-04T21:40:42.381Z"
+}
+```
+
+### Cache Management (API Key Required)
+Cache management uses GridPane CLI commands for proper integration.
+
 ```bash
-# Clear all site caches
-curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  http://localhost:3000/api/cache/clear-all
+# Clear all caches using GridPane CLI
+curl -X POST -H "X-API-Key: YOUR_API_KEY" \
+  https://your-server.com/api/control/cache/clear
 
 # Clear specific site cache
-curl -X POST -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  http://localhost:3000/api/cache/clear/example.com
+curl -X POST -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"site": "example.com"}' \
+  https://your-server.com/api/control/cache/clear-site
+```
+
+Response format:
+```json
+{
+  "success": true,
+  "message": "Cache cleared successfully",
+  "output": "Redis Cache cleared\nPHP OpCache cleared\nNginx FastCGI Cache cleared",
+  "timestamp": "2025-08-04T21:16:27.461Z"
+}
 ```
 
 ## Service Management
@@ -196,13 +234,39 @@ sudo rm -rf /etc/gridpane-manager
 sudo userdel gridpane-manager
 ```
 
+## GridPane CLI Integration
+
+This backend service integrates directly with GridPane CLI commands for all system operations, ensuring compatibility with GridPane's security model and best practices.
+
+### Service Management
+- **Nginx restart**: Uses `gp ngx -restart` command
+- **MySQL restart**: Uses `gp mysql -restart` command
+- **Cache clearing**: Uses `gp fix cached` command
+- **Site-specific cache**: Uses `gp site {site} cache clear` command
+
+### System User Requirements
+For optimal GridPane CLI integration, the backend service should run as root or a properly configured GridPane system user with SSH access enabled:
+
+```bash
+# Enable SSH access for a system user (run as root)
+gp user {username} -ssh-access true
+```
+
+### GridPane CLI Documentation
+For complete GridPane CLI reference, see:
+- [GP-CLI Quick Reference](https://gridpane.com/kb/gp-cli-quick-reference/)
+- [Connect as System User](https://gridpane.com/kb/connect-to-a-gridpane-server-by-ssh-as-a-system-user/)
+- [GridPane CLI Basics](https://gridpane.com/kb/getting-to-know-the-command-line-linux-cli-basics/)
+
 ## Requirements
 
-- Node.js 18.x LTS or higher
-- npm (included with Node.js)
-- systemd (for service management)
-- GridPane server environment with CLI tools
-- Ubuntu/Debian-based system (recommended)
+- **GridPane Server**: Must be a GridPane-managed server with CLI tools installed
+- **Node.js**: 18.x LTS or higher
+- **npm**: Included with Node.js
+- **systemd**: For service management
+- **Operating System**: Ubuntu/Debian-based system (recommended)
+- **GridPane CLI**: `/usr/local/bin/gp` must be available and functional
+- **System Privileges**: Service should run as root for full GridPane CLI access
 
 ## License
 
