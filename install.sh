@@ -1,18 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
-# GridPane Monitoring Agent - Secure Installation Script
-# This script sets up the monitoring agent with proper security hardening
-
-INSTALL_DIR="/opt/gridpane-monitor"
-SERVICE_FILE="/etc/systemd/system/gridpane-monitor.service"
-USER_NAME="gridpane-monitor"
-GROUP_NAME="gridpane-monitor"
+# GridPane Manager Backend Installation Script
+# Installs and configures the Node.js backend service
+# Upgraded from Python Flask to Node.js Express for iOS app integration
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 log() {

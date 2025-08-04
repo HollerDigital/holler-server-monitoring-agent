@@ -1,6 +1,8 @@
-# Holler Server Monitoring Agent
+# GridPane Manager Backend API
 
-A lightweight Python-based monitoring agent for GridPane servers that provides real-time system metrics and health monitoring.
+Apple-friendly, App Store-compliant backend service for the GridPane Manager iOS app. This Node.js API handles all privileged server operations, monitoring, and notifications without requiring direct SSH access from the mobile app.
+
+**🚀 MAJOR UPDATE:** Upgraded from Python Flask to Node.js Express for better iOS integration, enhanced security, and improved performance.
 
 ## Features
 
@@ -48,7 +50,7 @@ The monitoring agent runs on port 8080 by default and provides the following end
 
 ### Health Check
 ```bash
-curl http://localhost:8080/health
+curl http://localhost:8080/api/health
 ```
 
 ### System Metrics

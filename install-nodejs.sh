@@ -1,0 +1,222 @@
+#!/bin/bash
+
+# GridPane Manager Backend Installation Script
+# Installs and configures the Node.js backend service
+# Upgraded from Python Flask to Node.js Express for iOS app integration
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Configuration
+SERVICE_NAME="gridpane-manager"
+SERVICE_USER="gridpane-manager"
+INSTALL_DIR="/opt/gridpane-manager"
+LOG_DIR="/var/log/gridpane-manager"
+CONFIG_DIR="/etc/gridpane-manager"
+
+echo -e "${BLUE}GridPane Manager Backend Installation${NC}"
+echo "======================================"
+
+# Check if running as root
+if [[ $EUID -ne 0 ]]; then
+   echo -e "${RED}This script must be run as root${NC}"
+   exit 1
+fi
+
+# Check if Node.js is installed
+if ! command -v node &> /dev/null; then
+    echo -e "${YELLOW}Node.js not found. Installing Node.js...${NC}"
+    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+    apt-get install -y nodejs
+fi
+
+# Verify Node.js version
+NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
+if [ "$NODE_VERSION" -lt 16 ]; then
+    echo -e "${RED}Node.js version 16 or higher is required${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}Node.js $(node --version) found${NC}"
+
+# Create service user
+if ! id "$SERVICE_USER" &>/dev/null; then
+    echo -e "${YELLOW}Creating service user: $SERVICE_USER${NC}"
+    useradd --system --shell /bin/false --home-dir "$INSTALL_DIR" --create-home "$SERVICE_USER"
+fi
+
+# Create directories
+echo -e "${YELLOW}Creating directories...${NC}"
+mkdir -p "$INSTALL_DIR"
+mkdir -p "$LOG_DIR"
+mkdir -p "$CONFIG_DIR"
+
+# Set permissions
+chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
+chown -R "$SERVICE_USER:$SERVICE_USER" "$LOG_DIR"
+
+# Copy application files
+echo -e "${YELLOW}Installing application files...${NC}"
+if [ -f "package.json" ]; then
+    cp -r . "$INSTALL_DIR/"
+    cd "$INSTALL_DIR"
+    
+    # Install dependencies
+    echo -e "${YELLOW}Installing Node.js dependencies...${NC}"
+    sudo -u "$SERVICE_USER" npm install --production
+else
+    echo -e "${RED}package.json not found. Please run this script from the project directory.${NC}"
+    exit 1
+fi
+
+# Create environment file
+if [ ! -f "$CONFIG_DIR/.env" ]; then
+    echo -e "${YELLOW}Creating environment configuration...${NC}"
+    cp .env.example "$CONFIG_DIR/.env"
+    
+    # Generate random JWT secret
+    JWT_SECRET=$(openssl rand -base64 32)
+    API_KEY=$(openssl rand -hex 32)
+    
+    sed -i "s/your-super-secure-jwt-secret-key-here/$JWT_SECRET/" "$CONFIG_DIR/.env"
+    sed -i "s/your-api-key-here/$API_KEY/" "$CONFIG_DIR/.env"
+    
+    echo -e "${GREEN}Environment file created at $CONFIG_DIR/.env${NC}"
+    echo -e "${YELLOW}Please edit $CONFIG_DIR/.env to configure your settings${NC}"
+fi
+
+# Create systemd service file
+echo -e "${YELLOW}Creating systemd service...${NC}"
+cat > /etc/systemd/system/$SERVICE_NAME.service << EOF
+[Unit]
+Description=GridPane Manager Backend API
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=$SERVICE_USER
+Group=$SERVICE_USER
+WorkingDirectory=$INSTALL_DIR
+ExecStart=/usr/bin/node src/server.js
+EnvironmentFile=$CONFIG_DIR/.env
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=$SERVICE_NAME
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=$LOG_DIR $CONFIG_DIR
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Create logrotate configuration
+echo -e "${YELLOW}Setting up log rotation...${NC}"
+cat > /etc/logrotate.d/$SERVICE_NAME << EOF
+$LOG_DIR/*.log {
+    daily
+    missingok
+    rotate 52
+    compress
+    delaycompress
+    notifempty
+    create 644 $SERVICE_USER $SERVICE_USER
+    postrotate
+        systemctl reload $SERVICE_NAME > /dev/null 2>&1 || true
+    endscript
+}
+EOF
+
+# Set up sudoers for service control
+echo -e "${YELLOW}Configuring sudo permissions...${NC}"
+cat > /etc/sudoers.d/$SERVICE_NAME << EOF
+# Allow gridpane-manager service to restart system services
+$SERVICE_USER ALL=(ALL) NOPASSWD: /bin/systemctl restart nginx
+$SERVICE_USER ALL=(ALL) NOPASSWD: /bin/systemctl restart mysql
+$SERVICE_USER ALL=(ALL) NOPASSWD: /bin/systemctl restart mysqld
+$SERVICE_USER ALL=(ALL) NOPASSWD: /bin/systemctl restart mariadb
+$SERVICE_USER ALL=(ALL) NOPASSWD: /bin/systemctl restart apache2
+$SERVICE_USER ALL=(ALL) NOPASSWD: /bin/systemctl restart php*-fpm
+$SERVICE_USER ALL=(ALL) NOPASSWD: /bin/systemctl is-active *
+$SERVICE_USER ALL=(ALL) NOPASSWD: /bin/systemctl is-enabled *
+$SERVICE_USER ALL=(ALL) NOPASSWD: /sbin/shutdown -r +1 *
+$SERVICE_USER ALL=(ALL) NOPASSWD: /usr/local/bin/gp *
+EOF
+
+# Stop old Python service if it exists
+if systemctl is-active --quiet gridpane-monitor 2>/dev/null; then
+    echo -e "${YELLOW}Stopping old Python monitoring service...${NC}"
+    systemctl stop gridpane-monitor
+    systemctl disable gridpane-monitor
+fi
+
+# Reload systemd and enable service
+echo -e "${YELLOW}Enabling and starting service...${NC}"
+systemctl daemon-reload
+systemctl enable $SERVICE_NAME
+
+# Start the service
+if systemctl start $SERVICE_NAME; then
+    echo -e "${GREEN}Service started successfully${NC}"
+else
+    echo -e "${RED}Failed to start service. Check logs with: journalctl -u $SERVICE_NAME${NC}"
+    exit 1
+fi
+
+# Check service status
+sleep 2
+if systemctl is-active --quiet $SERVICE_NAME; then
+    echo -e "${GREEN}✓ GridPane Manager Backend is running${NC}"
+    echo -e "${GREEN}✓ Service: $SERVICE_NAME${NC}"
+    echo -e "${GREEN}✓ Port: $(grep PORT $CONFIG_DIR/.env | cut -d'=' -f2 || echo '3000')${NC}"
+    echo -e "${GREEN}✓ Logs: journalctl -u $SERVICE_NAME -f${NC}"
+    
+    # Display API key for initial setup
+    API_KEY=$(grep API_KEY $CONFIG_DIR/.env | cut -d'=' -f2)
+    echo -e "${BLUE}✓ API Key: $API_KEY${NC}"
+else
+    echo -e "${RED}✗ Service failed to start${NC}"
+    echo -e "${YELLOW}Check logs: journalctl -u $SERVICE_NAME${NC}"
+    exit 1
+fi
+
+# Display next steps
+echo ""
+echo -e "${BLUE}Installation Complete!${NC}"
+echo "===================="
+echo -e "${YELLOW}Migration Notes:${NC}"
+echo "- Upgraded from Python Flask to Node.js Express"
+echo "- Service name changed from 'gridpane-monitor' to 'gridpane-manager'"
+echo "- Default port changed from 8847 to 3000"
+echo "- Enhanced security and iOS app integration"
+echo ""
+echo -e "${YELLOW}Next Steps:${NC}"
+echo "1. Edit configuration: $CONFIG_DIR/.env"
+echo "2. Configure SSL/TLS certificates"
+echo "3. Set up firewall rules for the API port"
+echo "4. Test the API: curl http://localhost:3000/health"
+echo ""
+echo -e "${YELLOW}Service Management:${NC}"
+echo "- Start:   systemctl start $SERVICE_NAME"
+echo "- Stop:    systemctl stop $SERVICE_NAME"
+echo "- Restart: systemctl restart $SERVICE_NAME"
+echo "- Status:  systemctl status $SERVICE_NAME"
+echo "- Logs:    journalctl -u $SERVICE_NAME -f"
+echo ""
+echo -e "${GREEN}GridPane Manager Backend is ready!${NC}"
