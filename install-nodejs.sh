@@ -29,17 +29,34 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
-# Check if Node.js is installed
-if ! command -v node &> /dev/null; then
-    echo -e "${YELLOW}Node.js not found. Installing Node.js...${NC}"
+# Install or update Node.js
+echo -e "${YELLOW}Checking Node.js installation...${NC}"
+
+# Check if Node.js is installed and get version
+if command -v node &> /dev/null; then
+    CURRENT_NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
+    echo -e "${GREEN}Found Node.js v$(node --version)${NC}"
+    
+    if [ "$CURRENT_NODE_VERSION" -lt 16 ]; then
+        echo -e "${YELLOW}Node.js version $CURRENT_NODE_VERSION is too old. Installing Node.js 18.x...${NC}"
+        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+        apt-get install -y nodejs
+    fi
+else
+    echo -e "${YELLOW}Node.js not found. Installing Node.js 18.x...${NC}"
     curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
     apt-get install -y nodejs
 fi
 
-# Verify Node.js version
+# Verify final Node.js installation
+if ! command -v node &> /dev/null; then
+    echo -e "${RED}Failed to install Node.js${NC}"
+    exit 1
+fi
+
 NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
 if [ "$NODE_VERSION" -lt 16 ]; then
-    echo -e "${RED}Node.js version 16 or higher is required${NC}"
+    echo -e "${RED}Node.js version 16 or higher is required, but found version $NODE_VERSION${NC}"
     exit 1
 fi
 
