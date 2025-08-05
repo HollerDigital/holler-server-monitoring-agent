@@ -280,7 +280,53 @@ curl -H "X-API-Key: YOUR_API_KEY" \
 
 # Test SSL grade
 ssl-checker server1-api.yourdomain.com
+
+## Troubleshooting
+
+### GridPane-Specific Issues
+
+**Node.js 12.x Upgrade Conflict (Very Common):**
+GridPane servers come with Node.js 12.x by default, which conflicts with Node.js 18.x installation.
+
+```bash
+# Error: trying to overwrite '/usr/include/node/common.gypi'
+# Solution: Remove conflicting packages first
+sudo apt-get remove --purge nodejs npm libnode-dev nodejs-doc
+sudo apt-get autoremove -y
+sudo apt-get autoclean
+
+# Then install Node.js 18.x
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get update
+sudo apt-get install -y nodejs
+
+# Verify installation
+node --version  # Should show v18.x.x
 ```
+
+**If the installer fails on GridPane:**
+```bash
+# Manual cleanup and installation
+sudo systemctl stop gridpane-manager 2>/dev/null || true
+sudo apt-get remove --purge nodejs* npm* libnode* 2>/dev/null || true
+sudo apt-get autoremove -y
+sudo apt-get autoclean
+sudo dpkg --configure -a
+
+# Fresh Node.js 18.x installation
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get update
+sudo apt-get install -y nodejs
+
+# Verify and continue with agent installation
+node --version
+npm --version
+
+# Re-run the installer
+curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install.sh | sudo bash
+```
+
+### Common Issues
 
 ## Installation
 

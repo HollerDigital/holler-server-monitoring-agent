@@ -38,9 +38,31 @@ if command -v node &> /dev/null; then
     echo -e "${GREEN}Found Node.js v$(node --version)${NC}"
     
     if [ "$CURRENT_NODE_VERSION" -lt 16 ]; then
-        echo -e "${YELLOW}Node.js version $CURRENT_NODE_VERSION is too old. Installing Node.js 18.x...${NC}"
+        echo -e "${YELLOW}Node.js version $CURRENT_NODE_VERSION is too old. Upgrading to Node.js 18.x...${NC}"
+        echo -e "${YELLOW}Removing conflicting Node.js packages (common on GridPane servers)...${NC}"
+        
+        # Remove conflicting packages that prevent Node.js 18.x installation
+        apt-get remove -y libnode-dev nodejs-doc npm || true
+        apt-get autoremove -y || true
+        
+        # Clear any package locks
+        dpkg --configure -a || true
+        
+        # Install Node.js 18.x
         curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+        apt-get update
         apt-get install -y nodejs
+        
+        # Verify installation worked
+        if ! command -v node &> /dev/null; then
+            echo -e "${RED}Node.js installation failed. Please run manual cleanup:${NC}"
+            echo -e "${YELLOW}sudo apt-get remove --purge nodejs npm libnode-dev nodejs-doc${NC}"
+            echo -e "${YELLOW}sudo apt-get autoremove -y${NC}"
+            echo -e "${YELLOW}sudo apt-get autoclean${NC}"
+            echo -e "${YELLOW}curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -${NC}"
+            echo -e "${YELLOW}sudo apt-get install -y nodejs${NC}"
+            exit 1
+        fi
     fi
 else
     echo -e "${YELLOW}Node.js not found. Installing Node.js 18.x...${NC}"
