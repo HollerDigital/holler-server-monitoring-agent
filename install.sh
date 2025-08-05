@@ -159,6 +159,48 @@ fi
 echo -e "${YELLOW}Installing Node.js dependencies...${NC}"
 sudo -u "$SERVICE_USER" npm install --production
 
+# Prompt for API key if not provided via environment variable
+if [ -z "$USER_API_KEY" ] && [ -t 0 ]; then
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}                    GridPane Manager API Key Setup${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo
+    echo -e "${YELLOW}For centralized management, you can provide a single API key that will be"
+    echo -e "used across all your GridPane Manager backend installations.${NC}"
+    echo
+    echo -e "${GREEN}Benefits of using a centralized API key:${NC}"
+    echo -e "  • Single key management across all servers"
+    echo -e "  • Easy server addition from your iOS app"
+    echo -e "  • Simplified authentication setup"
+    echo
+    echo -e "${BLUE}You can either:${NC}"
+    echo -e "  1. Provide your API key now (recommended)"
+    echo -e "  2. Generate a new API key automatically"
+    echo -e "  3. Skip and use setup token (configure later via iOS app)"
+    echo
+    read -p "$(echo -e "${YELLOW}Choose option (1-3) or press Enter to skip: ${NC}")" choice
+    
+    case "$choice" in
+        1)
+            read -p "$(echo -e "${YELLOW}Enter your API key: ${NC}")" USER_API_KEY
+            ;;
+        2)
+            USER_API_KEY=$(openssl rand -hex 32)
+            echo -e "${GREEN}Generated new API key: ${BLUE}$USER_API_KEY${NC}"
+            echo -e "${YELLOW}⚠️  IMPORTANT: Save this API key! Use it for all your server installations.${NC}"
+            read -p "$(echo -e "${BLUE}Press Enter to continue...${NC}")"
+            ;;
+        3|"")
+            USER_API_KEY=""
+            ;;
+        *)
+            echo -e "${RED}Invalid choice. Skipping API key setup.${NC}"
+            USER_API_KEY=""
+            ;;
+    esac
+    echo
+fi
+
 # Create environment file
 if [ ! -f "$CONFIG_DIR/.env" ]; then
     echo -e "${YELLOW}Creating environment configuration...${NC}"
@@ -166,14 +208,34 @@ if [ ! -f "$CONFIG_DIR/.env" ]; then
     
     # Generate random JWT secret
     JWT_SECRET=$(openssl rand -base64 32)
-    API_KEY=$(openssl rand -hex 32)
+    
+    # Handle API key configuration
+    if [ -n "$USER_API_KEY" ]; then
+        # Use user-provided API key
+        API_KEY="$USER_API_KEY"
+        echo -e "${GREEN}Using provided API key for centralized management${NC}"
+    else
+        # Generate setup token for initial configuration
+        SETUP_TOKEN=$(openssl rand -hex 32)
+        API_KEY="setup-required"
+        echo -e "${YELLOW}No API key provided. Generated setup token for initial configuration.${NC}"
+        echo -e "${BLUE}Setup Token: $SETUP_TOKEN${NC}"
+        echo -e "${YELLOW}Use this token in your iOS app to set your centralized API key.${NC}"
+    fi
     
     # Use | as delimiter to avoid conflicts with / in base64 strings
     sed -i "s|your-super-secure-jwt-secret-key-here|$JWT_SECRET|" "$CONFIG_DIR/.env"
     sed -i "s|your-api-key-here|$API_KEY|" "$CONFIG_DIR/.env"
     
+    # Add setup token if generated
+    if [ -n "$SETUP_TOKEN" ]; then
+        echo "SETUP_TOKEN=$SETUP_TOKEN" >> "$CONFIG_DIR/.env"
+    fi
+    
     echo -e "${GREEN}Environment file created at $CONFIG_DIR/.env${NC}"
-    echo -e "${YELLOW}Please edit $CONFIG_DIR/.env to configure your settings${NC}"
+    if [ -z "$USER_API_KEY" ]; then
+        echo -e "${YELLOW}⚠️  IMPORTANT: Save the setup token above to configure your API key via the iOS app${NC}"
+    fi
 fi
 
 # Create systemd service file
