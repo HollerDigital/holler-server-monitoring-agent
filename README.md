@@ -512,26 +512,190 @@ sudo systemctl restart gridpane-manager
 sudo systemctl stop gridpane-manager
 ```
 
-## Uninstallation
+## Uninstallation & Reinstallation
 
-To remove the backend service:
+### Quick Uninstall (Recommended)
+
+Use the automated uninstall script for complete removal:
+
+```bash
+# Download and run the uninstall script
+curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/uninstall.sh | sudo bash
+```
+
+**OR** clone and run manually:
+
+```bash
+git clone https://github.com/HollerDigital/holler-server-monitoring-agent.git
+cd holler-server-monitoring-agent
+sudo bash uninstall.sh
+```
+
+#### What the Uninstall Script Removes:
+- ✅ **Service**: Stops and disables `gridpane-manager` service
+- ✅ **System Files**: Removes systemd service file and reloads daemon
+- ✅ **Application**: Deletes `/opt/gridpane-manager` directory
+- ✅ **Logs**: Removes `/var/log/gridpane-manager` directory
+- ✅ **Configuration**: Option to keep or remove `/etc/gridpane-manager`
+- ✅ **User Account**: Removes `gridpane-manager` system user
+- ✅ **Permissions**: Removes sudo permissions and logrotate config
+- ✅ **Cleanup**: Terminates any remaining processes
+
+#### Configuration Preservation
+
+The uninstall script will ask if you want to keep configuration files:
+- **Keep Config**: Preserves API keys and settings for easy reinstall
+- **Remove Config**: Complete clean removal
+
+### Manual Uninstall
+
+If you prefer manual removal or the script fails:
 
 ```bash
 # Stop and disable service
 sudo systemctl stop gridpane-manager
 sudo systemctl disable gridpane-manager
 
-# Remove service files
-sudo rm /etc/systemd/system/gridpane-manager.service
+# Remove systemd files
+sudo rm -f /etc/systemd/system/gridpane-manager.service
+sudo rm -rf /etc/systemd/system/gridpane-manager.service.d
 sudo systemctl daemon-reload
 
-# Remove application files
+# Remove application and data
 sudo rm -rf /opt/gridpane-manager
 sudo rm -rf /var/log/gridpane-manager
-sudo rm -rf /etc/gridpane-manager
+sudo rm -rf /etc/gridpane-manager  # Optional: keep for reinstall
+
+# Remove system configuration
+sudo rm -f /etc/logrotate.d/gridpane-manager
+sudo rm -f /etc/sudoers.d/gridpane-manager
 
 # Remove service user
-sudo userdel gridpane-manager
+sudo userdel gridpane-manager 2>/dev/null || true
+
+# Kill any remaining processes
+sudo pkill -f "gridpane-manager" || true
+```
+
+### Reinstallation
+
+#### Clean Reinstall
+
+After uninstalling, reinstall with the latest version:
+
+```bash
+# Method 1: One-liner (recommended)
+curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install.sh | sudo bash
+
+# Method 2: Interactive install
+git clone https://github.com/HollerDigital/holler-server-monitoring-agent.git
+cd holler-server-monitoring-agent
+sudo bash install.sh
+```
+
+#### Reinstall with Preserved Configuration
+
+If you kept configuration during uninstall:
+
+```bash
+# The installer will detect existing configuration
+curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install.sh | sudo bash
+
+# Your API keys and settings will be automatically restored
+```
+
+#### Update/Upgrade Installation
+
+To update to the latest version without losing configuration:
+
+```bash
+# Stop the service
+sudo systemctl stop gridpane-manager
+
+# Backup configuration (optional safety measure)
+sudo cp -r /etc/gridpane-manager /tmp/gridpane-manager-backup
+
+# Remove only application files (keep config)
+sudo rm -rf /opt/gridpane-manager
+
+# Reinstall latest version
+curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install.sh | sudo bash
+
+# Service will restart automatically with preserved settings
+```
+
+### Troubleshooting Uninstall Issues
+
+#### Service Won't Stop
+```bash
+# Force kill the service
+sudo systemctl kill gridpane-manager
+sudo pkill -9 -f "gridpane-manager"
+```
+
+#### Permission Denied Errors
+```bash
+# Ensure you're running as root
+sudo su -
+# Then run uninstall commands
+```
+
+#### Files Still Present After Uninstall
+```bash
+# Force remove any remaining files
+sudo find /opt -name "*gridpane-manager*" -exec rm -rf {} + 2>/dev/null || true
+sudo find /etc -name "*gridpane-manager*" -exec rm -rf {} + 2>/dev/null || true
+sudo find /var -name "*gridpane-manager*" -exec rm -rf {} + 2>/dev/null || true
+```
+
+### Migration Between Servers
+
+To move your GridPane Manager setup to a new server:
+
+1. **Export configuration from old server**:
+   ```bash
+   # Create backup of configuration
+   sudo tar -czf gridpane-manager-config.tar.gz -C /etc gridpane-manager
+   ```
+
+2. **Transfer to new server**:
+   ```bash
+   scp gridpane-manager-config.tar.gz root@new-server:/tmp/
+   ```
+
+3. **Install on new server**:
+   ```bash
+   # Install fresh
+   curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install.sh | sudo bash
+   
+   # Stop service and restore config
+   sudo systemctl stop gridpane-manager
+   sudo rm -rf /etc/gridpane-manager
+   sudo tar -xzf /tmp/gridpane-manager-config.tar.gz -C /etc
+   sudo systemctl restart gridpane-manager
+   ```
+
+4. **Uninstall from old server**:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/uninstall.sh | sudo bash
+   ```
+
+### Verification After Reinstall
+
+After any reinstallation, verify everything is working:
+
+```bash
+# Check service status
+sudo systemctl status gridpane-manager
+
+# Test health endpoint
+curl http://localhost:3000/health
+
+# Test authenticated endpoint (replace YOUR_API_KEY)
+curl -H "X-API-Key: YOUR_API_KEY" http://localhost:3000/api/monitoring/system
+
+# Check logs for any errors
+sudo journalctl -u gridpane-manager --no-pager -n 20
 ```
 
 ## GridPane CLI Integration
