@@ -135,6 +135,153 @@ To deploy to multiple servers efficiently:
    ./deploy-to-servers.sh
    ```
 
+### CloudFlare Setup (Production)
+
+For production deployment with SSL/HTTPS (required for App Store compliance):
+
+#### 1. Domain Setup
+
+Create subdomains for each server in CloudFlare:
+- `server1-api.yourdomain.com` → Server 1 IP
+- `server2-api.yourdomain.com` → Server 2 IP
+- `server3-api.yourdomain.com` → Server 3 IP
+
+#### 2. CloudFlare DNS Records
+
+Add A records for each server:
+```
+Type: A
+Name: server1-api
+Content: 45.77.226.198
+Proxy: ✅ Proxied (Orange Cloud)
+TTL: Auto
+```
+
+#### 3. CloudFlare SSL Settings
+
+1. **SSL/TLS Mode**: Set to "Full (strict)" or "Full"
+2. **Always Use HTTPS**: Enable
+3. **Minimum TLS Version**: 1.2
+4. **Automatic HTTPS Rewrites**: Enable
+
+#### 4. Nginx Reverse Proxy Setup
+
+On each GridPane server, create an Nginx configuration:
+
+```bash
+# Create Nginx site configuration
+sudo nano /etc/nginx/sites-available/gridpane-manager-api
+```
+
+Add this configuration:
+```nginx
+server {
+    listen 80;
+    listen 443 ssl http2;
+    server_name server1-api.yourdomain.com;  # Change for each server
+    
+    # SSL Configuration (GridPane auto-manages SSL)
+    ssl_certificate /etc/letsencrypt/live/server1-api.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/server1-api.yourdomain.com/privkey.pem;
+    
+    # Security headers
+    add_header X-Frame-Options DENY;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-XSS-Protection "1; mode=block";
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    
+    # Rate limiting
+    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+    limit_req zone=api burst=20 nodelay;
+    
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+    
+    # Health check endpoint (no auth required)
+    location /health {
+        proxy_pass http://127.0.0.1:3000/health;
+        access_log off;
+    }
+}
+```
+
+#### 5. Enable the Site
+
+```bash
+# Enable the site
+sudo ln -s /etc/nginx/sites-available/gridpane-manager-api /etc/nginx/sites-enabled/
+
+# Test Nginx configuration
+sudo nginx -t
+
+# Reload Nginx
+sudo systemctl reload nginx
+```
+
+#### 6. SSL Certificate Setup
+
+Use GridPane's built-in SSL management or manually with Let's Encrypt:
+
+```bash
+# Using GridPane CLI (recommended)
+gp site server1-api.yourdomain.com -ssl-enable
+
+# OR manually with certbot
+sudo certbot --nginx -d server1-api.yourdomain.com
+```
+
+#### 7. Update iOS App Configuration
+
+Update your iOS app to use HTTPS endpoints:
+```swift
+// In BackendAPIService.swift
+let baseURL = "https://server1-api.yourdomain.com"
+```
+
+#### 8. CloudFlare Security Rules (Optional)
+
+Add security rules in CloudFlare:
+
+1. **Rate Limiting**: 100 requests per minute per IP
+2. **Geographic Restrictions**: Block unwanted countries
+3. **Bot Fight Mode**: Enable
+4. **DDoS Protection**: Automatic
+
+#### 9. Monitoring and Alerts
+
+Set up CloudFlare monitoring:
+- **Health Checks**: Monitor `/health` endpoint
+- **Email Alerts**: Notify on downtime
+- **Analytics**: Track API usage
+
+#### 10. Testing Production Setup
+
+```bash
+# Test HTTPS endpoint
+curl https://server1-api.yourdomain.com/health
+
+# Test authenticated endpoint
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://server1-api.yourdomain.com/api/metrics
+
+# Test SSL grade
+ssl-checker server1-api.yourdomain.com
+```
+
 ## Installation
 
 ### Manual Installation
