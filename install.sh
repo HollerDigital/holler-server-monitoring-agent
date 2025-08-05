@@ -134,16 +134,30 @@ chown -R "$SERVICE_USER:$USER_GROUP" "$LOG_DIR"
 # Copy application files
 echo -e "${YELLOW}Installing application files...${NC}"
 if [ -f "package.json" ]; then
+    # Running from cloned repository directory
     cp -r . "$INSTALL_DIR/"
     cd "$INSTALL_DIR"
-    
-    # Install dependencies
-    echo -e "${YELLOW}Installing Node.js dependencies...${NC}"
-    sudo -u "$SERVICE_USER" npm install --production
 else
-    echo -e "${RED}package.json not found. Please run this script from the project directory.${NC}"
-    exit 1
+    # Running from one-liner curl command - need to clone repository
+    echo -e "${YELLOW}package.json not found. Cloning repository...${NC}"
+    cd /tmp
+    rm -rf holler-server-monitoring-agent
+    git clone https://github.com/HollerDigital/holler-server-monitoring-agent.git
+    cd holler-server-monitoring-agent
+    
+    if [ ! -f "package.json" ]; then
+        echo -e "${RED}Failed to clone repository or package.json still not found${NC}"
+        exit 1
+    fi
+    
+    # Copy files to install directory
+    cp -r . "$INSTALL_DIR/"
+    cd "$INSTALL_DIR"
 fi
+
+# Install dependencies
+echo -e "${YELLOW}Installing Node.js dependencies...${NC}"
+sudo -u "$SERVICE_USER" npm install --production
 
 # Create environment file
 if [ ! -f "$CONFIG_DIR/.env" ]; then
