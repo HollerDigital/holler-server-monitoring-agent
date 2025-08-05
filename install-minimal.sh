@@ -73,7 +73,10 @@ fi
 
 # Install dependencies
 echo -e "${YELLOW}Installing Node.js dependencies...${NC}"
-sudo -u "$SERVICE_USER" npm install --production
+npm install --production
+
+# Change ownership after installation
+chown -R "$SERVICE_USER:$USER_GROUP" .
 
 # Interactive configuration
 echo -e "${YELLOW}Server Configuration:${NC}"
