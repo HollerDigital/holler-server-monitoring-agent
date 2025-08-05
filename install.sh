@@ -159,11 +159,74 @@ fi
 echo -e "${YELLOW}Installing Node.js dependencies...${NC}"
 sudo -u "$SERVICE_USER" npm install --production
 
-# Prompt for API key if not provided via environment variable
-if [ -z "$USER_API_KEY" ] && [ -t 0 ]; then
+# Prompt for server configuration if running interactively
+# Check for interactive terminal or if script was run directly (not piped)
+if [ -t 0 ] || [[ "$0" != "/dev/fd/"* ]] && [[ "$0" != "/proc/self/fd/"* ]]; then
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}                    GridPane Manager Server Configuration${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo
+    echo -e "${YELLOW}Configure your server for SSL/HTTPS access via CloudFlare.${NC}"
+    echo
+    
+    # Server ID Configuration
+    echo -e "${GREEN}Step 1: Server ID${NC}"
+    echo -e "This unique identifier will be used in your monitor domain URL."
+    echo -e "Example: If Server ID is 'web-server-01', your endpoint will be:"
+    echo -e "         https://web-server-01.monitor.yourdomain.com"
+    echo
+    read -p "$(echo -e "${YELLOW}Enter Server ID (e.g., web-server-01): ${NC}")" SERVER_ID
+    
+    if [ -z "$SERVER_ID" ]; then
+        # Try to generate a reasonable default from hostname
+        DEFAULT_SERVER_ID=$(hostname | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-\|-$//g')
+        if [ -n "$DEFAULT_SERVER_ID" ]; then
+            SERVER_ID="$DEFAULT_SERVER_ID"
+            echo -e "${BLUE}Using hostname-based Server ID: ${YELLOW}$SERVER_ID${NC}"
+        else
+            SERVER_ID="gridpane-server-$(date +%s | tail -c 5)"
+            echo -e "${BLUE}Generated random Server ID: ${YELLOW}$SERVER_ID${NC}"
+        fi
+    fi
+    
+    echo
+    
+    # Monitor Domain Configuration
+    echo -e "${GREEN}Step 2: Monitor Domain (Optional)${NC}"
+    echo -e "Configure a custom domain for SSL access via CloudFlare."
+    echo -e "If provided, your backend will be accessible at:"
+    echo -e "         https://$SERVER_ID.YOUR_MONITOR_DOMAIN"
+    echo
+    echo -e "${BLUE}Benefits of using a monitor domain:${NC}"
+    echo -e "  • SSL/HTTPS access via CloudFlare"
+    echo -e "  • Professional URLs for all servers"
+    echo -e "  • Easy iOS app integration"
+    echo -e "  • Centralized SSL certificate management"
+    echo
+    read -p "$(echo -e "${YELLOW}Enter Monitor Domain (e.g., monitor.yourdomain.com) or press Enter to skip: ${NC}")" MONITOR_DOMAIN
+    
+    if [ -n "$MONITOR_DOMAIN" ]; then
+        echo -e "${GREEN}✓ Monitor Domain configured: ${BLUE}$MONITOR_DOMAIN${NC}"
+        echo -e "${YELLOW}Your backend endpoint will be: ${BLUE}https://$SERVER_ID.$MONITOR_DOMAIN${NC}"
+        echo
+        echo -e "${YELLOW}Next steps for SSL setup:${NC}"
+        echo -e "  1. Add DNS record in CloudFlare: $SERVER_ID.$MONITOR_DOMAIN → $(curl -s ifconfig.me 2>/dev/null || echo 'YOUR_SERVER_IP')"
+        echo -e "  2. Enable CloudFlare SSL with wildcard: *.$MONITOR_DOMAIN"
+        echo -e "  3. Enable CloudFlare proxy (orange cloud)"
+        echo
+        read -p "$(echo -e "${BLUE}Press Enter to continue...${NC}")"
+    else
+        echo -e "${BLUE}Skipping monitor domain setup. Backend will use HTTP on port 3000.${NC}"
+    fi
+    
+    echo
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${YELLOW}                    GridPane Manager API Key Setup${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+fi
+
+# Prompt for API key if not provided via environment variable
+if [ -z "$USER_API_KEY" ] && ([ -t 0 ] || [[ "$0" != "/dev/fd/"* ]] && [[ "$0" != "/proc/self/fd/"* ]]); then
     echo
     echo -e "${YELLOW}For centralized management, you can provide a single API key that will be"
     echo -e "used across all your GridPane Manager backend installations.${NC}"
@@ -230,6 +293,16 @@ if [ ! -f "$CONFIG_DIR/.env" ]; then
     # Add setup token if generated
     if [ -n "$SETUP_TOKEN" ]; then
         echo "SETUP_TOKEN=$SETUP_TOKEN" >> "$CONFIG_DIR/.env"
+    fi
+    
+    # Add server configuration
+    if [ -n "$SERVER_ID" ]; then
+        echo "SERVER_ID=$SERVER_ID" >> "$CONFIG_DIR/.env"
+    fi
+    
+    if [ -n "$MONITOR_DOMAIN" ]; then
+        echo "MONITOR_DOMAIN=$MONITOR_DOMAIN" >> "$CONFIG_DIR/.env"
+        echo "BACKEND_URL=https://$SERVER_ID.$MONITOR_DOMAIN" >> "$CONFIG_DIR/.env"
     fi
     
     echo -e "${GREEN}Environment file created at $CONFIG_DIR/.env${NC}"
@@ -332,6 +405,19 @@ if systemctl is-active --quiet $SERVICE_NAME; then
     echo -e "${GREEN}✓ GridPane Manager Backend is running${NC}"
     echo -e "${GREEN}✓ Service: $SERVICE_NAME${NC}"
     echo -e "${GREEN}✓ Port: $(grep PORT $CONFIG_DIR/.env | cut -d'=' -f2 || echo '3000')${NC}"
+    
+    # Display server configuration
+    if [ -n "$SERVER_ID" ]; then
+        echo -e "${BLUE}✓ Server ID: $SERVER_ID${NC}"
+    fi
+    
+    if [ -n "$MONITOR_DOMAIN" ]; then
+        echo -e "${BLUE}✓ Monitor Domain: $MONITOR_DOMAIN${NC}"
+        echo -e "${BLUE}✓ SSL Endpoint: https://$SERVER_ID.$MONITOR_DOMAIN${NC}"
+    else
+        echo -e "${BLUE}✓ HTTP Endpoint: http://$(curl -s ifconfig.me 2>/dev/null || echo 'YOUR_SERVER_IP'):3000${NC}"
+    fi
+    
     echo -e "${GREEN}✓ Logs: journalctl -u $SERVICE_NAME -f${NC}"
     
     # Display API key for initial setup
