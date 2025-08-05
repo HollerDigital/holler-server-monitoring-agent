@@ -14,6 +14,7 @@ const logger = require('./utils/logger');
 const authRoutes = require('./routes/auth');
 const monitoringRoutes = require('./routes/monitoring');
 const controlRoutes = require('./routes/control');
+const diagnosticsRoutes = require('./routes/diagnostics');
 const { authenticateToken, authenticateEither, authenticateApiKey } = require('./middleware/auth');
 
 const app = express();
@@ -69,6 +70,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/monitoring', authenticateApiKey, monitoringRoutes);
 app.use('/api/control', authenticateEither, controlRoutes);
+app.use('/api/diagnostics', authenticateEither, diagnosticsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

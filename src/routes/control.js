@@ -14,42 +14,15 @@ const execAsync = promisify(exec);
 
 /**
  * POST /api/control/restart/nginx
- * Restart Nginx web server
+ * Restart Nginx - Stage 2 (Coming Soon)
  */
 router.post('/restart/nginx', async (req, res) => {
-  try {
-    logger.logSystemEvent('NGINX_RESTART_REQUESTED', { ip: req.ip, user: req.user?.id });
-
-    // Check if GridPane CLI is available
-    await execAsync('which gp');
-    
-    // Restart nginx using GridPane CLI
-    const { stdout, stderr } = await execAsync('gp ngx -restart');
-    
-    // GridPane CLI handles verification internally
-
-    logger.logSystemEvent('NGINX_RESTART_SUCCESS', { ip: req.ip, user: req.user?.id });
-
-    res.json({
-      success: true,
-      message: 'Nginx restarted successfully using GridPane CLI',
-      output: stdout,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    logger.error('Nginx restart failed:', error);
-    logger.logSystemEvent('NGINX_RESTART_FAILED', { 
-      error: error.message, 
-      ip: req.ip, 
-      user: req.user?.id 
-    });
-
-    res.status(500).json({
-      error: 'Failed to restart Nginx',
-      message: error.message
-    });
-  }
+  res.status(501).json({
+    success: false,
+    message: 'Nginx restart - Stage 2 feature (Coming Soon)',
+    note: 'This feature requires proper GridPane system user authentication and will be available in Stage 2',
+    timestamp: new Date().toISOString()
+  });
 });
 
 /**
@@ -57,43 +30,12 @@ router.post('/restart/nginx', async (req, res) => {
  * Restart MySQL database server
  */
 router.post('/restart/mysql', async (req, res) => {
-  try {
-    logger.logSystemEvent('MYSQL_RESTART_REQUESTED', { ip: req.ip, user: req.user?.id });
-
-    // Check if GridPane CLI is available
-    await execAsync('which gp');
-    
-    // Restart MySQL using GridPane CLI
-    const { stdout, stderr } = await execAsync('gp mysql -restart');
-    
-    // GridPane CLI handles verification internally
-
-    logger.logSystemEvent('MYSQL_RESTART_SUCCESS', { 
-      method: 'gridpane-cli',
-      ip: req.ip, 
-      user: req.user?.id 
-    });
-
-    res.json({
-      success: true,
-      message: 'MySQL restarted successfully using GridPane CLI',
-      output: stdout,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    logger.error('MySQL restart failed:', error);
-    logger.logSystemEvent('MYSQL_RESTART_FAILED', { 
-      error: error.message, 
-      ip: req.ip, 
-      user: req.user?.id 
-    });
-
-    res.status(500).json({
-      error: 'Failed to restart MySQL',
-      message: error.message
-    });
-  }
+  res.status(501).json({
+    success: false,
+    message: 'MySQL restart - Stage 2 feature (Coming Soon)',
+    note: 'This feature requires proper GridPane system user authentication and will be available in Stage 2',
+    timestamp: new Date().toISOString()
+  });
 });
 
 /**
@@ -149,61 +91,144 @@ router.post('/restart/server', [
 
 /**
  * POST /api/control/cache/clear
- * Clear all sites cache using GridPane CLI
+ * Clear all sites cache using GridPane CLI with enhanced debugging
  */
 router.post('/cache/clear', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = Math.random().toString(36).substr(2, 9);
+  
   try {
-    logger.logSystemEvent('CACHE_CLEAR_REQUESTED', { ip: req.ip, user: req.user?.id });
+    // Enhanced request logging
+    logger.info(`[${requestId}] Cache clear requested`, {
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      method: req.method,
+      url: req.originalUrl,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Log request headers for debugging
+    logger.info(`[${requestId}] Request headers:`, {
+      'content-type': req.get('Content-Type'),
+      'x-api-key': req.get('X-API-Key') ? '[PRESENT]' : '[MISSING]',
+      'user-agent': req.get('User-Agent'),
+      'host': req.get('Host')
+    });
+    
+    logger.logSystemEvent('CACHE_CLEAR_REQUESTED', { 
+      requestId,
+      ip: req.ip, 
+      user: req.user?.id
+    });
 
     // Check if GridPane CLI is available
+    logger.info(`[${requestId}] Checking GridPane CLI availability`);
     await execAsync('which gp');
-
-    // Clear cache using GridPane CLI
+    logger.info(`[${requestId}] GridPane CLI found at /usr/local/bin/gp');
+    
+    // Clear all caches using GridPane CLI
+    logger.info(`[${requestId}] Executing: gp fix cached`);
+    const execStart = Date.now();
     const { stdout, stderr } = await execAsync('gp fix cached');
+    const execDuration = Date.now() - execStart;
+    
+    logger.info(`[${requestId}] GridPane CLI execution completed`, {
+      duration: `${execDuration}ms`,
+      stdoutLength: stdout.length,
+      stderrLength: stderr.length,
+      hasErrors: stderr.length > 0
+    });
+    
+    // Log detailed output for debugging
+    if (stdout) {
+      logger.info(`[${requestId}] STDOUT:`, stdout);
+    }
+    if (stderr) {
+      logger.warn(`[${requestId}] STDERR:`, stderr);
+    }
 
+    const totalDuration = Date.now() - startTime;
     logger.logSystemEvent('CACHE_CLEAR_SUCCESS', { 
-      output: stdout,
+      requestId,
+      method: 'gridpane-cli',
+      duration: `${totalDuration}ms`,
       ip: req.ip, 
       user: req.user?.id 
     });
 
-    res.json({
+    const response = {
       success: true,
       message: 'Cache cleared successfully',
       output: stdout,
-      timestamp: new Date().toISOString()
+      stderr: stderr || null,
+      duration: `${totalDuration}ms`,
+      requestId,
+      timestamp: new Date().toISOString(),
+      debug: {
+        cliExecutionTime: `${execDuration}ms`,
+        totalRequestTime: `${totalDuration}ms`,
+        outputSize: stdout.length,
+        hasWarnings: stderr.length > 0,
+        command: 'gp fix cached'
+      }
+    };
+
+    // Log response details
+    logger.info(`[${requestId}] Response prepared`, {
+      responseSize: JSON.stringify(response).length,
+      duration: `${totalDuration}ms`,
+      success: true
     });
 
+    // Set response headers for debugging
+    res.set({
+      'X-Request-ID': requestId,
+      'X-Execution-Time': `${totalDuration}ms`,
+      'X-CLI-Execution-Time': `${execDuration}ms`
+    });
+
+    res.json(response);
+
   } catch (error) {
-    logger.error('Cache clear failed:', error);
+    const totalDuration = Date.now() - startTime;
+    
+    logger.error(`[${requestId}] Cache clear failed:`, {
+      error: error.message,
+      stack: error.stack,
+      duration: `${totalDuration}ms`,
+      ip: req.ip
+    });
+    
     logger.logSystemEvent('CACHE_CLEAR_FAILED', { 
+      requestId,
       error: error.message, 
+      duration: `${totalDuration}ms`,
       ip: req.ip, 
       user: req.user?.id 
     });
 
-    // If GridPane CLI is not available, try alternative methods
-    if (error.message.includes('which gp')) {
-      try {
-        // Alternative: Clear common cache locations
-        await execAsync('find /var/cache -type f -name "*.cache" -delete 2>/dev/null || true');
-        await execAsync('sync && echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true');
-
-        res.json({
-          success: true,
-          message: 'Cache cleared using alternative method (GridPane CLI not available)',
-          timestamp: new Date().toISOString()
-        });
-        return;
-      } catch (altError) {
-        // Fall through to error response
-      }
-    }
-
-    res.status(500).json({
+    const errorResponse = {
+      success: false,
       error: 'Failed to clear cache',
-      message: error.message
+      message: error.message,
+      requestId,
+      duration: `${totalDuration}ms`,
+      timestamp: new Date().toISOString(),
+      debug: {
+        errorType: error.constructor.name,
+        totalRequestTime: `${totalDuration}ms`,
+        command: 'gp fix cached'
+      }
+    };
+
+    // Set error response headers
+    res.set({
+      'X-Request-ID': requestId,
+      'X-Execution-Time': `${totalDuration}ms`,
+      'X-Error-Type': error.constructor.name
     });
+
+    res.status(500).json(errorResponse);
   }
 });
 
