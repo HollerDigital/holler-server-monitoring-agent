@@ -223,7 +223,6 @@ if [ -t 0 ] || ( [[ "$0" != "/dev/fd/"* ]] && [[ "$0" != "/proc/self/fd/"* ]] );
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${YELLOW}                    GridPane Manager API Key Setup${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-fi
 
 # Prompt for API key if not provided via environment variable
 if [ -z "$USER_API_KEY" ] && ( [ -t 0 ] || ( [[ "$0" != "/dev/fd/"* ]] && [[ "$0" != "/proc/self/fd/"* ]] ) ); then
