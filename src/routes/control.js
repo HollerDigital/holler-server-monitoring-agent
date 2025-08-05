@@ -124,7 +124,7 @@ router.post('/cache/clear', async (req, res) => {
     // Check if GridPane CLI is available
     logger.info(`[${requestId}] Checking GridPane CLI availability`);
     await execAsync('which gp');
-    logger.info(`[${requestId}] GridPane CLI found at /usr/local/bin/gp');
+    logger.info(`[${requestId}] GridPane CLI found at /usr/local/bin/gp`);
     
     // Clear all caches using GridPane CLI
     logger.info(`[${requestId}] Executing: gp fix cached`);
