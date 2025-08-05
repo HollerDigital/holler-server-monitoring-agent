@@ -239,11 +239,25 @@ if [ -n "$SERVER_ID" ] && [ -n "$MONITOR_DOMAIN" ]; then
     echo
     echo -e "${BLUE}Setting up Nginx reverse proxy...${NC}"
     
+    # Add rate limiting to main nginx config if not already present
+    if ! grep -q "limit_req_zone.*zone=api" /etc/nginx/nginx.conf; then
+        echo "    Adding rate limiting to nginx.conf..."
+        sed -i '/http {/a\    limit_req_zone \$binary_remote_addr zone=api:10m rate=10r/s;' /etc/nginx/nginx.conf
+    fi
+    
     # Create Nginx site configuration
     cat > /etc/nginx/sites-available/gridpane-manager-api << EOF
 server {
     listen 80;
     server_name $SERVER_ID.$MONITOR_DOMAIN;
+    
+    # Security headers
+    add_header X-Frame-Options DENY;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-XSS-Protection "1; mode=block";
+    
+    # Rate limiting (applied per location)
+    limit_req zone=api burst=20 nodelay;
     
     location / {
         proxy_pass http://localhost:3000;
@@ -255,6 +269,17 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_cache_bypass \$http_upgrade;
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+    
+    # Health check endpoint (no auth required)
+    location /health {
+        proxy_pass http://localhost:3000/health;
+        access_log off;
     }
 }
 EOF

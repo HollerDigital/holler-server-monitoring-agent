@@ -263,7 +263,18 @@ On each GridPane server, create an Nginx configuration:
 sudo nano /etc/nginx/sites-available/gridpane-manager-api
 ```
 
-Add this configuration:
+**First, add rate limiting to the main nginx configuration:**
+```bash
+# Add this to /etc/nginx/nginx.conf in the http block
+sudo nano /etc/nginx/nginx.conf
+```
+
+Add this line inside the `http` block (before any `server` blocks):
+```nginx
+limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+```
+
+**Then create the site configuration:**
 ```nginx
 server {
     listen 80;
@@ -280,8 +291,7 @@ server {
     add_header X-XSS-Protection "1; mode=block";
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     
-    # Rate limiting
-    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+    # Rate limiting (applied per location)
     limit_req zone=api burst=20 nodelay;
     
     location / {
