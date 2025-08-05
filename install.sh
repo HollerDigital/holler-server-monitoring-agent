@@ -161,7 +161,7 @@ sudo -u "$SERVICE_USER" npm install --production
 
 # Prompt for server configuration if running interactively
 # Check for interactive terminal or if script was run directly (not piped)
-if [ -t 0 ] || [[ "$0" != "/dev/fd/"* ]] && [[ "$0" != "/proc/self/fd/"* ]]; then
+if [ -t 0 ] || ( [[ "$0" != "/dev/fd/"* ]] && [[ "$0" != "/proc/self/fd/"* ]] ); then
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${YELLOW}                    GridPane Manager Server Configuration${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -226,7 +226,7 @@ if [ -t 0 ] || [[ "$0" != "/dev/fd/"* ]] && [[ "$0" != "/proc/self/fd/"* ]]; the
 fi
 
 # Prompt for API key if not provided via environment variable
-if [ -z "$USER_API_KEY" ] && ([ -t 0 ] || [[ "$0" != "/dev/fd/"* ]] && [[ "$0" != "/proc/self/fd/"* ]]); then
+if [ -z "$USER_API_KEY" ] && ( [ -t 0 ] || ( [[ "$0" != "/dev/fd/"* ]] && [[ "$0" != "/proc/self/fd/"* ]] ) ); then
     echo
     echo -e "${YELLOW}For centralized management, you can provide a single API key that will be"
     echo -e "used across all your GridPane Manager backend installations.${NC}"
