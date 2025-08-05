@@ -16,11 +16,17 @@ Apple-friendly, App Store-compliant backend service for the GridPane Manager iOS
 - **Push Notifications**: Server alerts and status updates (planned)
 - **Lightweight**: Minimal resource footprint with Node.js efficiency
 
-## Installation
+## Quick Deployment Guide
 
-### Automatic Installation
+### Deploy to New Server (Recommended)
 
-Run the installation script on your GridPane server:
+For each new GridPane server, run this one-liner as root:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install.sh | sudo bash
+```
+
+**OR** use the manual clone method:
 
 ```bash
 cd /tmp
@@ -29,6 +35,107 @@ cd holler-server-monitoring-agent
 chmod +x install.sh
 sudo ./install.sh
 ```
+
+### Post-Installation Steps
+
+1. **Set your API key** (replace `YOUR_SECURE_API_KEY` with your actual key):
+   ```bash
+   sudo systemctl edit gridpane-manager --full
+   # Add this line in the [Service] section:
+   # Environment="API_KEY=YOUR_SECURE_API_KEY"
+   ```
+
+2. **Restart the service**:
+   ```bash
+   sudo systemctl restart gridpane-manager
+   ```
+
+3. **Verify installation**:
+   ```bash
+   # Check service status
+   sudo systemctl status gridpane-manager
+   
+   # Test health endpoint
+   curl http://localhost:3000/health
+   
+   # Test authenticated endpoint
+   curl -H "X-API-Key: YOUR_SECURE_API_KEY" http://localhost:3000/api/metrics
+   ```
+
+4. **Open firewall** (if needed for external access):
+   ```bash
+   sudo ufw allow 3000/tcp
+   ```
+
+### Multi-Server Deployment
+
+To deploy to multiple servers efficiently:
+
+1. **Create a deployment script** (`deploy-to-servers.sh`):
+   ```bash
+   #!/bin/bash
+   
+   # List of your GridPane server IPs
+   SERVERS=(
+       "45.77.226.198"
+       "your.second.server.ip"
+       "your.third.server.ip"
+   )
+   
+   API_KEY="YOUR_SECURE_API_KEY_HERE"
+   
+   for server in "${SERVERS[@]}"; do
+       echo "🚀 Deploying to $server..."
+       
+       # Deploy the agent
+       ssh root@$server 'curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install.sh | bash'
+       
+       # Set API key
+       ssh root@$server "systemctl edit gridpane-manager --full" <<EOF
+   [Unit]
+   Description=GridPane Manager Backend API
+   After=network.target
+   
+   [Service]
+   Type=simple
+   User=holler-app-test
+   Group=holler-app-test
+   WorkingDirectory=/opt/gridpane-manager
+   ExecStart=/usr/bin/node src/server.js
+   Restart=always
+   RestartSec=10
+   Environment="NODE_ENV=production"
+   Environment="PORT=3000"
+   Environment="API_KEY=$API_KEY"
+   StandardOutput=journal
+   StandardError=journal
+   SyslogIdentifier=gridpane-manager
+   
+   [Install]
+   WantedBy=multi-user.target
+   EOF
+       
+       # Restart service
+       ssh root@$server 'systemctl restart gridpane-manager'
+       
+       # Verify deployment
+       echo "✅ Testing $server..."
+       ssh root@$server 'curl -s http://localhost:3000/health | jq .'
+       
+       echo "✅ $server deployment complete!"
+       echo "---"
+   done
+   
+   echo "🎉 All servers deployed successfully!"
+   ```
+
+2. **Make it executable and run**:
+   ```bash
+   chmod +x deploy-to-servers.sh
+   ./deploy-to-servers.sh
+   ```
+
+## Installation
 
 ### Manual Installation
 
