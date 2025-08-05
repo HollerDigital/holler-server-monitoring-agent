@@ -21,14 +21,14 @@ Apple-friendly, App Store-compliant backend service for the GridPane Manager iOS
 ### Quick Install (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jamesmurgatroyd/holler-server-monitoring-agent/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install.sh | sudo bash
 ```
 
 ### Manual Install
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/jamesmurgatroyd/holler-server-monitoring-agent.git
+git clone https://github.com/HollerDigital/holler-server-monitoring-agent.git
 cd holler-server-monitoring-agent
 ```
 
@@ -36,6 +36,35 @@ cd holler-server-monitoring-agent
 ```bash
 sudo ./install.sh
 ```
+
+### Manual Configuration (Recommended)
+
+For production deployments, manual configuration provides better control:
+
+1. **Install using the automated script**:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install.sh | sudo bash
+   ```
+
+2. **Configure environment manually**:
+   ```bash
+   sudo nano /etc/gridpane-manager/.env
+   ```
+   
+   Set your desired values:
+   ```bash
+   SERVER_ID=your-server-name
+   MONITOR_DOMAIN=yourdomain.com
+   BACKEND_URL=https://your-server-name.yourdomain.com
+   API_KEY=your-secure-api-key-here
+   ```
+
+3. **Restart the service**:
+   ```bash
+   sudo systemctl restart gridpane-manager
+   ```
+
+**Note**: Interactive prompts don't work with `curl | bash` (piped input). Manual configuration is preferred for production deployments.
 
 ## CloudFlare DNS Configuration
 
