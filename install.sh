@@ -313,10 +313,22 @@ if systemctl is-active --quiet $SERVICE_NAME; then
         echo "2. Test HTTPS endpoint: https://$SERVER_ID.$MONITOR_DOMAIN/api/health"
         echo "3. Configure iOS app with API key: $API_KEY"
     else
-        echo "1. Test HTTP endpoint: http://$(curl -s ifconfig.me 2>/dev/null || echo 'YOUR_SERVER_IP'):3000/api/health"
-        echo "2. Configure monitor domain for HTTPS/SSL support"
+        echo "1. MANUAL CONFIGURATION (Recommended):"
+        echo "   sudo nano /etc/gridpane-manager/.env"
+        echo "   Set: SERVER_ID=your-server-name"
+        echo "   Set: MONITOR_DOMAIN=yourdomain.com"
+        echo "   Set: BACKEND_URL=https://your-server-name.yourdomain.com"
+        echo "   Then: sudo systemctl restart gridpane-manager"
+        echo "2. Test HTTP endpoint: http://$(curl -s ifconfig.me 2>/dev/null || echo 'YOUR_SERVER_IP'):3000/api/health"
         echo "3. Configure iOS app with API key: $API_KEY"
     fi
+    
+    echo
+    echo -e "${BLUE}Manual Configuration (Production Recommended):${NC}"
+    echo "If you need to customize settings after installation:"
+    echo "1. Edit: sudo nano /etc/gridpane-manager/.env"
+    echo "2. Restart: sudo systemctl restart gridpane-manager"
+    echo "3. Verify: curl http://localhost:3000/api/health"
     
     echo
     echo -e "${YELLOW}Service Management:${NC}"
