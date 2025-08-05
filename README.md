@@ -16,6 +16,67 @@ Apple-friendly, App Store-compliant backend service for the GridPane Manager iOS
 - **Push Notifications**: Server alerts and status updates (planned)
 - **Lightweight**: Minimal resource footprint with Node.js efficiency
 
+## Installation
+
+### Quick Install (Recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jamesmurgatroyd/holler-server-monitoring-agent/main/install.sh | bash
+```
+
+### Manual Install
+
+1. Clone the repository:
+```bash
+git clone https://github.com/jamesmurgatroyd/holler-server-monitoring-agent.git
+cd holler-server-monitoring-agent
+```
+
+2. Run the installer:
+```bash
+sudo ./install.sh
+```
+
+## CloudFlare DNS Configuration
+
+For the dynamic URL system to work with HTTPS and SSL, you need to configure CloudFlare DNS:
+
+### 1. Add DNS A Record
+
+In your CloudFlare dashboard for your monitor domain (e.g., `hollerdigital.dev`):
+
+- **Type**: A
+- **Name**: `your-server-id` (e.g., `holler-digital-2025`)
+- **IPv4 address**: Your server's IP address
+- **Proxy status**: 🟠 **Proxied** (orange cloud) - **REQUIRED for SSL**
+- **TTL**: Auto
+
+### 2. SSL/TLS Configuration
+
+Ensure your CloudFlare SSL/TLS settings are:
+- **SSL/TLS encryption mode**: Full (strict) or Full
+- **Edge Certificates**: Universal SSL enabled
+- **Always Use HTTPS**: On (recommended)
+
+### 3. Dynamic URL Format
+
+Once configured, your backend will be accessible at:
+```
+https://your-server-id.your-monitor-domain.com
+```
+
+Example:
+```
+https://holler-digital-2025.hollerdigital.dev
+```
+
+### 4. iOS App Configuration
+
+In the iOS app settings:
+1. Set your **Monitor Domain** (e.g., `hollerdigital.dev`)
+2. Configure the **API Key** (generated during installation)
+3. The app will automatically construct dynamic URLs for each server
+
 ## Quick Deployment Guide
 
 ### Deploy to New Server (Recommended)

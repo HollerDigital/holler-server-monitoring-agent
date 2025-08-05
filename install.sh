@@ -428,6 +428,45 @@ else
     exit 1
 fi
 
+# Setup Nginx reverse proxy for CloudFlare integration
+echo ""
+echo -e "${BLUE}Setting up Nginx reverse proxy...${NC}"
+
+# Create Nginx site configuration
+cat > /etc/nginx/sites-available/gridpane-manager-api << EOF
+server {
+    listen 80;
+    server_name $SERVER_ID.$MONITOR_DOMAIN;
+    
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+    }
+}
+EOF
+
+# Enable the site
+ln -sf /etc/nginx/sites-available/gridpane-manager-api /etc/nginx/sites-enabled/
+
+# Test and reload Nginx
+if nginx -t; then
+    systemctl reload nginx
+    echo -e "${GREEN}✓ Nginx reverse proxy configured${NC}"
+else
+    echo -e "${YELLOW}⚠ Nginx configuration test failed - please check manually${NC}"
+fi
+
+# Open firewall for backend port
+ufw allow 3000/tcp > /dev/null 2>&1
+echo -e "${GREEN}✓ Firewall configured (port 3000)${NC}"
+
 # Display next steps
 echo ""
 echo -e "${BLUE}Installation Complete!${NC}"
@@ -452,3 +491,4 @@ echo "- Status:  systemctl status $SERVICE_NAME"
 echo "- Logs:    journalctl -u $SERVICE_NAME -f"
 echo ""
 echo -e "${GREEN}GridPane Manager Backend is ready!${NC}"
+
