@@ -1,6 +1,7 @@
 /**
  * Control Routes
  * Server control endpoints for service restarts, cache clearing, etc.
+ * Enhanced for minimal server agent architecture
  */
 
 const express = require('express');
@@ -8,34 +9,244 @@ const { exec } = require('child_process');
 const { promisify } = require('util');
 const { body, validationResult } = require('express-validator');
 const logger = require('../utils/logger');
+const systemctl = require('../services/systemctl');
+const agentConfig = require('../config/agent');
 
 const router = express.Router();
 const execAsync = promisify(exec);
 
 /**
  * POST /api/control/restart/nginx
- * Restart Nginx - Stage 2 (Coming Soon)
+ * Restart Nginx service
  */
 router.post('/restart/nginx', async (req, res) => {
-  res.status(501).json({
-    success: false,
-    message: 'Nginx restart - Stage 2 feature (Coming Soon)',
-    note: 'This feature requires proper GridPane system user authentication and will be available in Stage 2',
-    timestamp: new Date().toISOString()
-  });
+  const requestId = Math.random().toString(36).substr(2, 9);
+  
+  try {
+    const result = await systemctl.restartService('nginx', {
+      requestId,
+      ip: req.ip,
+      user: req.user?.id
+    });
+
+    res.json({
+      success: true,
+      message: 'Nginx restarted successfully',
+      service: 'nginx',
+      ...result,
+      requestId
+    });
+
+  } catch (error) {
+    logger.error(`[${requestId}] Nginx restart failed:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to restart Nginx',
+      message: error.message,
+      service: 'nginx',
+      requestId,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 /**
  * POST /api/control/restart/mysql
- * Restart MySQL database server
+ * Restart MySQL/MariaDB database server
  */
 router.post('/restart/mysql', async (req, res) => {
-  res.status(501).json({
-    success: false,
-    message: 'MySQL restart - Stage 2 feature (Coming Soon)',
-    note: 'This feature requires proper GridPane system user authentication and will be available in Stage 2',
-    timestamp: new Date().toISOString()
-  });
+  const requestId = Math.random().toString(36).substr(2, 9);
+  
+  try {
+    const result = await systemctl.restartService('database', {
+      requestId,
+      ip: req.ip,
+      user: req.user?.id
+    });
+
+    res.json({
+      success: true,
+      message: 'Database service restarted successfully',
+      service: 'database',
+      ...result,
+      requestId
+    });
+
+  } catch (error) {
+    logger.error(`[${requestId}] Database restart failed:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to restart database service',
+      message: error.message,
+      service: 'database',
+      requestId,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * POST /api/control/restart/php-fpm
+ * Restart PHP-FPM service (auto-detects version)
+ */
+router.post('/restart/php-fpm', async (req, res) => {
+  const requestId = Math.random().toString(36).substr(2, 9);
+  
+  try {
+    const result = await systemctl.restartService('php-fpm', {
+      requestId,
+      ip: req.ip,
+      user: req.user?.id
+    });
+
+    res.json({
+      success: true,
+      message: 'PHP-FPM restarted successfully',
+      service: 'php-fpm',
+      ...result,
+      requestId
+    });
+
+  } catch (error) {
+    logger.error(`[${requestId}] PHP-FPM restart failed:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to restart PHP-FPM',
+      message: error.message,
+      service: 'php-fpm',
+      requestId,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * POST /api/control/restart/redis
+ * Restart Redis server
+ */
+router.post('/restart/redis', async (req, res) => {
+  const requestId = Math.random().toString(36).substr(2, 9);
+  
+  try {
+    const result = await systemctl.restartService('redis-server', {
+      requestId,
+      ip: req.ip,
+      user: req.user?.id
+    });
+
+    res.json({
+      success: true,
+      message: 'Redis server restarted successfully',
+      service: 'redis-server',
+      ...result,
+      requestId
+    });
+
+  } catch (error) {
+    logger.error(`[${requestId}] Redis restart failed:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to restart Redis server',
+      message: error.message,
+      service: 'redis-server',
+      requestId,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * POST /api/control/restart/supervisor
+ * Restart Supervisor (queue workers)
+ */
+router.post('/restart/supervisor', async (req, res) => {
+  const requestId = Math.random().toString(36).substr(2, 9);
+  
+  try {
+    const result = await systemctl.restartService('supervisor', {
+      requestId,
+      ip: req.ip,
+      user: req.user?.id
+    });
+
+    res.json({
+      success: true,
+      message: 'Supervisor (queue workers) restarted successfully',
+      service: 'supervisor',
+      ...result,
+      requestId
+    });
+
+  } catch (error) {
+    logger.error(`[${requestId}] Supervisor restart failed:`, error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to restart Supervisor',
+      message: error.message,
+      service: 'supervisor',
+      requestId,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * POST /api/control/service/:action/:service
+ * Generic service control endpoint
+ */
+router.post('/service/:action/:service', async (req, res) => {
+  const { action, service } = req.params;
+  const requestId = Math.random().toString(36).substr(2, 9);
+  
+  try {
+    // Validate action
+    const allowedActions = ['start', 'stop', 'restart', 'reload'];
+    if (!allowedActions.includes(action)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid action',
+        message: `Action must be one of: ${allowedActions.join(', ')}`,
+        requestId
+      });
+    }
+
+    let result;
+    switch (action) {
+      case 'start':
+        result = await systemctl.startService(service, { requestId, ip: req.ip, user: req.user?.id });
+        break;
+      case 'stop':
+        result = await systemctl.stopService(service, { requestId, ip: req.ip, user: req.user?.id });
+        break;
+      case 'restart':
+        result = await systemctl.restartService(service, { requestId, ip: req.ip, user: req.user?.id });
+        break;
+      case 'reload':
+        result = await systemctl.reloadService(service, { requestId, ip: req.ip, user: req.user?.id });
+        break;
+    }
+
+    res.json({
+      success: true,
+      message: `Service ${service} ${action} completed successfully`,
+      action,
+      service,
+      ...result,
+      requestId
+    });
+
+  } catch (error) {
+    logger.error(`[${requestId}] Service ${action} failed for ${service}:`, error);
+    res.status(500).json({
+      success: false,
+      error: `Failed to ${action} service ${service}`,
+      message: error.message,
+      action,
+      service,
+      requestId,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 /**
@@ -294,38 +505,29 @@ router.post('/cache/clear-site', [
  * Get status of all controllable services
  */
 router.get('/services/status', async (req, res) => {
+  const requestId = Math.random().toString(36).substr(2, 9);
+  
   try {
-    const services = ['nginx', 'mysql', 'apache2', 'php8.1-fpm', 'redis-server', 'memcached'];
-    const serviceStatus = {};
-
-    for (const service of services) {
-      try {
-        await execAsync(`systemctl is-active ${service}`);
-        serviceStatus[service] = {
-          status: 'active',
-          controllable: true
-        };
-      } catch (error) {
-        serviceStatus[service] = {
-          status: 'inactive',
-          controllable: false
-        };
-      }
-    }
+    const result = await systemctl.getAllServicesStatus({
+      requestId,
+      ip: req.ip,
+      user: req.user?.id
+    });
 
     res.json({
       success: true,
-      data: {
-        timestamp: new Date().toISOString(),
-        services: serviceStatus
-      }
+      data: result,
+      requestId
     });
 
   } catch (error) {
-    logger.error('Service status check failed:', error);
+    logger.error(`[${requestId}] Service status check failed:`, error);
     res.status(500).json({
+      success: false,
       error: 'Failed to get service status',
-      message: error.message
+      message: error.message,
+      requestId,
+      timestamp: new Date().toISOString()
     });
   }
 });

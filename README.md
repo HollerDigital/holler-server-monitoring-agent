@@ -72,10 +72,10 @@ For the dynamic URL system to work with HTTPS and SSL, you need to configure Clo
 
 ### 1. Add DNS A Record
 
-In your CloudFlare dashboard for your monitor domain (e.g., `hollerdigital.dev`):
+In your CloudFlare dashboard for your monitor domain (e.g., `holler-monitor.app`):
 
 - **Type**: A
-- **Name**: `your-server-id` (e.g., `holler-digital-2025`)
+- **Name**: `your-server-id` (e.g., `server1`)
 - **IPv4 address**: Your server's IP address
 - **Proxy status**: 🟠 **Proxied** (orange cloud) - **REQUIRED for SSL**
 - **TTL**: Auto
@@ -91,18 +91,18 @@ Ensure your CloudFlare SSL/TLS settings are:
 
 Once configured, your backend will be accessible at:
 ```
-https://your-server-id.your-monitor-domain.com
+https://your-server-id.holler-monitor.app
 ```
 
 Example:
 ```
-https://holler-digital-2025.hollerdigital.dev
+https://server1.holler-monitor.app
 ```
 
 ### 4. iOS App Configuration
 
 In the iOS app settings:
-1. Set your **Monitor Domain** (e.g., `hollerdigital.dev`)
+1. Set your **Monitor Domain** (e.g., `holler-monitor.app`)
 2. Configure the **API Key** (generated during installation)
 3. The app will automatically construct dynamic URLs for each server
 
