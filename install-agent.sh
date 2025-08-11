@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Server Agent One-Line Installer
-# Usage: curl -sSL https://raw.githubusercontent.com/your-repo/holler-server-monitoring-agent/main/install-agent.sh | sudo bash
+# Usage: curl -sSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install-agent.sh | sudo bash
 
 set -e
 
 # Configuration
-REPO_URL="https://github.com/your-repo/holler-server-monitoring-agent"
+REPO_URL="https://github.com/HollerDigital/holler-server-monitoring-agent"
 INSTALL_DIR="/opt/server-agent"
 SERVICE_NAME="server-agent"
 AGENT_USER="svc-control"
