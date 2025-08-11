@@ -1,372 +1,344 @@
 #!/bin/bash
 
-# GridPane Manager Backend Installation Script
-# Clean version without syntax errors
+# Holler Server Agent Installation Script
+# One-line installer for the Holler Server Agent
+# Usage: curl -sSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install.sh | sudo bash
 
-set -e
+set -euo pipefail
 
-# Color codes
+# Configuration
+REPO_URL="https://github.com/HollerDigital/holler-server-monitoring-agent"
+INSTALL_DIR="/opt/holler-agent"
+SERVICE_NAME="holler-agent"
+SERVICE_USER="holler-agent"
+LOG_DIR="/var/log/holler-agent"
+
+# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Configuration
-SERVICE_NAME="gridpane-manager"
-SERVICE_USER="gridpane-manager"
-INSTALL_DIR="/opt/gridpane-manager"
-CONFIG_DIR="/etc/gridpane-manager"
-LOG_DIR="/var/log/gridpane-manager"
+log_info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
 
-echo "GridPane Manager Backend Installation"
-echo "======================================"
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+log_step() {
+    echo -e "${BLUE}[STEP]${NC} $1"
+}
+
+echo ""
+echo "🚀 Holler Server Agent Installation"
+echo "===================================="
+echo ""
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
-   echo -e "${RED}This script must be run as root${NC}"
+   log_error "This script must be run as root (use sudo)"
    exit 1
 fi
+
+log_step "Checking system requirements..."
 
 # Check Node.js installation
 if command -v node &> /dev/null; then
     CURRENT_NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
-    echo -e "${GREEN}Found Node.js v$(node --version)${NC}"
+    log_info "Found Node.js $(node --version)"
     
     if [ "$CURRENT_NODE_VERSION" -lt 16 ]; then
-        echo -e "${YELLOW}Node.js version 16 or higher required. Installing Node.js 18.x...${NC}"
-        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-        apt-get install -y nodejs
-    fi
-else
-    echo -e "${YELLOW}Node.js not found. Installing Node.js 18.x...${NC}"
-    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-    apt-get install -y nodejs
-fi
-
-if ! command -v node &> /dev/null; then
-    echo -e "${RED}Failed to install Node.js${NC}"
-    exit 1
-fi
-
-NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
-if [ "$NODE_VERSION" -lt 16 ]; then
-    echo -e "${RED}Node.js version 16 or higher is required, but found version $NODE_VERSION${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}Node.js $(node --version) found${NC}"
-
-# Create directories
-echo -e "${YELLOW}Creating directories...${NC}"
-mkdir -p "$INSTALL_DIR" "$CONFIG_DIR" "$LOG_DIR"
-
-# Create service user
-if ! id "$SERVICE_USER" &>/dev/null; then
-    echo -e "${YELLOW}Creating service user: $SERVICE_USER${NC}"
-    if useradd --system --shell /bin/false --no-create-home "$SERVICE_USER"; then
-        echo -e "${GREEN}Service user created successfully${NC}"
-    else
-        echo -e "${RED}Failed to create service user${NC}"
+        log_error "Node.js 16+ is required. Current version: $(node --version)"
         exit 1
     fi
 else
-    echo -e "${GREEN}Service user $SERVICE_USER already exists${NC}"
-fi
-
-if ! id "$SERVICE_USER" &>/dev/null; then
-    echo -e "${RED}Service user $SERVICE_USER does not exist${NC}"
+    log_error "Node.js is not installed. Please install Node.js 16+ first."
     exit 1
 fi
 
-USER_GROUP=$(id -gn "$SERVICE_USER" 2>/dev/null)
-if [ -z "$USER_GROUP" ]; then
-    echo -e "${RED}Cannot determine primary group for user $SERVICE_USER${NC}"
+# Check for required system packages
+log_info "Checking system dependencies..."
+MISSING_PACKAGES=()
+
+if ! command -v git &> /dev/null; then
+    MISSING_PACKAGES+=("git")
+fi
+
+if ! command -v curl &> /dev/null; then
+    MISSING_PACKAGES+=("curl")
+fi
+
+if [ ${#MISSING_PACKAGES[@]} -ne 0 ]; then
+    log_error "Missing required packages: ${MISSING_PACKAGES[*]}"
+    log_info "Install them with: apt update && apt install -y ${MISSING_PACKAGES[*]}"
     exit 1
 fi
 
-echo -e "${GREEN}User $SERVICE_USER primary group: $USER_GROUP${NC}"
+log_info "✓ System requirements met"
 
-# Set permissions
-echo -e "${YELLOW}Setting permissions...${NC}"
-chown -R "$SERVICE_USER:$USER_GROUP" "$INSTALL_DIR" "$CONFIG_DIR" "$LOG_DIR"
+log_step "Creating installation directory..."
+mkdir -p "$INSTALL_DIR"
+mkdir -p "$LOG_DIR"
 
-# Install application files
-echo -e "${YELLOW}Installing application files...${NC}"
+log_step "Downloading latest release..."
 cd "$INSTALL_DIR"
-
-if [ -f "package.json" ]; then
-    echo -e "${GREEN}Found existing installation${NC}"
+if [ -d ".git" ]; then
+    log_info "Updating existing installation..."
+    git pull
 else
-    echo -e "${YELLOW}Cloning repository...${NC}"
-    git clone https://github.com/HollerDigital/holler-server-monitoring-agent.git .
-    if [ ! -f "package.json" ]; then
-        echo -e "${RED}Failed to clone repository${NC}"
-        exit 1
-    fi
+    log_info "Cloning repository..."
+    git clone "$REPO_URL" .
 fi
 
-echo -e "${YELLOW}Installing Node.js dependencies...${NC}"
-sudo -u "$SERVICE_USER" npm install --production
+log_step "Installing dependencies..."
+npm install --production --no-audit --no-fund
 
-# Interactive configuration
-if [ -t 0 ]; then
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${YELLOW}                    GridPane Manager Server Configuration${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo
-    echo -e "${YELLOW}Configure your server for SSL/HTTPS access via CloudFlare.${NC}"
-    echo
-    
-    # Server ID Configuration
-    echo -e "${GREEN}Step 1: Server ID${NC}"
-    echo -e "This unique identifier will be used in your monitor domain URL."
-    echo
-    read -p "$(echo -e "${YELLOW}Enter Server ID (e.g., web-server-01): ${NC}")" SERVER_ID
-    
-    if [ -z "$SERVER_ID" ]; then
-        DEFAULT_SERVER_ID=$(hostname | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-\|-$//g')
-        if [ -n "$DEFAULT_SERVER_ID" ]; then
-            SERVER_ID="$DEFAULT_SERVER_ID"
-            echo -e "${BLUE}Using hostname-based Server ID: ${YELLOW}$SERVER_ID${NC}"
-        else
-            SERVER_ID="gridpane-server-$(date +%s | tail -c 5)"
-            echo -e "${BLUE}Generated random Server ID: ${YELLOW}$SERVER_ID${NC}"
-        fi
-    fi
-    
-    echo
-    
-    # Monitor Domain Configuration
-    echo -e "${GREEN}Step 2: Monitor Domain (Optional)${NC}"
-    echo -e "Configure a custom domain for SSL access via CloudFlare."
-    echo
-    read -p "$(echo -e "${YELLOW}Enter Monitor Domain (e.g., hollerdigital.dev) or press Enter to skip: ${NC}")" MONITOR_DOMAIN
-    
-    if [ -n "$MONITOR_DOMAIN" ]; then
-        echo -e "${GREEN}✓ Monitor Domain configured: ${BLUE}$MONITOR_DOMAIN${NC}"
-        echo -e "${YELLOW}Your backend endpoint will be: ${BLUE}https://$SERVER_ID.$MONITOR_DOMAIN${NC}"
-    else
-        echo -e "${BLUE}Skipping monitor domain setup. Backend will use HTTP on port 3000.${NC}"
-    fi
-    
-    echo
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+log_step "Setting up system user and permissions..."
+
+# Create system user
+if ! id "$SERVICE_USER" &>/dev/null; then
+    log_info "Creating system user: $SERVICE_USER"
+    useradd --system --shell /bin/false --home-dir "$INSTALL_DIR" --no-create-home "$SERVICE_USER"
+else
+    log_info "System user $SERVICE_USER already exists"
 fi
+
+# Set ownership and permissions
+chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
+chown -R "$SERVICE_USER:$SERVICE_USER" "$LOG_DIR"
+chmod 755 "$INSTALL_DIR"
+chmod 755 "$LOG_DIR"
+
+# Create sudoers configuration for service control
+log_info "Configuring sudoers for service control..."
+cat > "/etc/sudoers.d/$SERVICE_USER" << EOF
+# Allow $SERVICE_USER to manage system services
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl restart nginx
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl restart mysql
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl restart mariadb
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl restart php*-fpm
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl restart redis
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl restart redis-server
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl start nginx
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl start mysql
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl start mariadb
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl start php*-fpm
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl start redis
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl start redis-server
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl stop nginx
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl stop mysql
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl stop mariadb
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl stop php*-fpm
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl stop redis
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl stop redis-server
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl reload nginx
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl reload mysql
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl reload mariadb
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl reload php*-fpm
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl status nginx
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl status mysql
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl status mariadb
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl status php*-fpm
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl status redis
+$SERVICE_USER ALL=(root) NOPASSWD: /bin/systemctl status redis-server
+EOF
+
+# Validate sudoers file
+if visudo -c -f "/etc/sudoers.d/$SERVICE_USER"; then
+    log_info "Sudoers configuration validated successfully"
+else
+    log_error "Sudoers configuration is invalid"
+    rm -f "/etc/sudoers.d/$SERVICE_USER"
+    exit 1
+fi
+
+# Create D-Bus policy for systemd operations
+log_info "Configuring D-Bus policy..."
+cat > "/etc/dbus-1/system.d/$SERVICE_NAME.conf" << EOF
+<!DOCTYPE busconfig PUBLIC
+ "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN" 
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <policy user="$SERVICE_USER">
+    <allow send_destination="org.freedesktop.systemd1"/>
+    <allow send_interface="org.freedesktop.systemd1.Manager"/>
+    <allow send_interface="org.freedesktop.systemd1.Unit"/>
+    <allow send_interface="org.freedesktop.DBus.Properties"/>
+    <allow send_interface="org.freedesktop.DBus.Introspectable"/>
+    <allow send_member="RestartUnit"/>
+    <allow send_member="StartUnit"/>
+    <allow send_member="StopUnit"/>
+    <allow send_member="ReloadUnit"/>
+    <allow send_member="GetUnit"/>
+    <allow send_member="ListUnits"/>
+    <!-- Allow authentication for systemd operations -->
+    <allow send_destination="org.freedesktop.PolicyKit1"/>
+    <allow send_interface="org.freedesktop.PolicyKit1.Authority"/>
+  </policy>
+</busconfig>
+EOF
+
+# Create PolicyKit rules for systemd operations
+log_info "Configuring PolicyKit rules..."
+cat > "/etc/polkit-1/rules.d/50-$SERVICE_NAME.rules" << EOF
+polkit.addRule(function(action, subject) {
+    if ((action.id == "org.freedesktop.systemd1.manage-units" ||
+         action.id == "org.freedesktop.systemd1.manage-unit-files" ||
+         action.id == "org.freedesktop.systemd1.reload-daemon") &&
+        subject.user == "$SERVICE_USER") {
+        return polkit.Result.YES;
+    }
+});
+
+polkit.addRule(function(action, subject) {
+    if (action.id.match("org.freedesktop.systemd1") &&
+        subject.user == "$SERVICE_USER") {
+        return polkit.Result.YES;
+    }
+});
+EOF
+
+log_step "Configuring environment..."
+
+# Generate secure API key
+API_KEY=$(openssl rand -hex 32)
 
 # Create environment file
-if [ ! -f "$CONFIG_DIR/.env" ]; then
-    echo -e "${YELLOW}Creating environment configuration...${NC}"
-    cp .env.example "$CONFIG_DIR/.env"
-    
-    # Generate random JWT secret
-    JWT_SECRET=$(openssl rand -hex 32)
-    sed -i "s|JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" "$CONFIG_DIR/.env"
-    
-    # Generate API key
-    if [ -z "$USER_API_KEY" ]; then
-        API_KEY=$(openssl rand -hex 32)
-        echo -e "${YELLOW}Generated API key for backend authentication${NC}"
-    else
-        API_KEY="$USER_API_KEY"
-        echo -e "${GREEN}Using provided API key${NC}"
-    fi
-    
-    sed -i "s|API_KEY=.*|API_KEY=$API_KEY|" "$CONFIG_DIR/.env"
-    sed -i "s|GRIDPANE_API_KEY=.*|GRIDPANE_API_KEY=$API_KEY|" "$CONFIG_DIR/.env"
-    
-    if [ -n "$SERVER_ID" ]; then
-        sed -i "s|SERVER_ID=.*|SERVER_ID=$SERVER_ID|" "$CONFIG_DIR/.env"
-    fi
-    
-    if [ -n "$MONITOR_DOMAIN" ]; then
-        sed -i "s|MONITOR_DOMAIN=.*|MONITOR_DOMAIN=$MONITOR_DOMAIN|" "$CONFIG_DIR/.env"
-        sed -i "s|BACKEND_URL=.*|BACKEND_URL=https://$SERVER_ID.$MONITOR_DOMAIN|" "$CONFIG_DIR/.env"
-    fi
-    
-    echo -e "${GREEN}Environment file created${NC}"
-fi
+cat > "$INSTALL_DIR/.env" << EOF
+# Holler Server Agent Configuration
+NODE_ENV=production
+PORT=3001
+HOST=127.0.0.1
+
+# API Security
+API_KEY=$API_KEY
+
+# Logging
+LOG_DIR=$LOG_DIR
+LOG_LEVEL=info
+LOG_MAX_SIZE=20m
+LOG_MAX_FILES=14d
+
+# Agent Configuration
+AGENT_ID=agent-\$(hostname)
+AGENT_NAME=Holler Agent - \$(hostname)
+AGENT_VERSION=2.1.0
+AGENT_MODE=agent
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX=100
+
+# Security
+ALLOWED_IPS=127.0.0.1,::1
+EOF
+
+chown "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR/.env"
+chmod 600 "$INSTALL_DIR/.env"
+
+log_info "Generated secure API key: $API_KEY"
+log_warn "Save this API key - you'll need it to connect to the agent!"
+
+log_step "Configuring systemd service..."
 
 # Create systemd service file
-echo -e "${YELLOW}Creating systemd service...${NC}"
-cat > /etc/systemd/system/$SERVICE_NAME.service << 'EOF'
+cat > "/etc/systemd/system/$SERVICE_NAME.service" << EOF
 [Unit]
-Description=GridPane Manager Backend API
+Description=Holler Server Agent - Secure Server Management
 After=network.target
 Wants=network.target
 
 [Service]
 Type=simple
-User=gridpane-manager
-Group=users
-WorkingDirectory=/opt/gridpane-manager
-ExecStart=/usr/bin/node src/server.js
-EnvironmentFile=/etc/gridpane-manager/.env
+User=$SERVICE_USER
+Group=$SERVICE_USER
+WorkingDirectory=$INSTALL_DIR
+ExecStart=/usr/bin/node src/agent-server.js
 Restart=always
 RestartSec=10
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=gridpane-manager
+EnvironmentFile=$INSTALL_DIR/.env
 
 # Security settings
-NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/log/gridpane-manager /etc/gridpane-manager
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectControlGroups=true
+ReadWritePaths=$LOG_DIR $INSTALL_DIR
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=$SERVICE_NAME
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Enable and start service
-echo -e "${YELLOW}Enabling and starting service...${NC}"
+# Reload systemd and enable service
 systemctl daemon-reload
-systemctl enable $SERVICE_NAME
+systemctl enable "$SERVICE_NAME"
 
-if systemctl start $SERVICE_NAME; then
-    echo -e "${GREEN}Service started successfully${NC}"
-else
-    echo -e "${RED}Failed to start service${NC}"
-    exit 1
-fi
+log_step "Starting Holler Agent..."
 
-# Setup Nginx reverse proxy for CloudFlare integration
-if [ -n "$SERVER_ID" ] && [ -n "$MONITOR_DOMAIN" ]; then
-    echo
-    echo -e "${BLUE}Setting up Nginx reverse proxy...${NC}"
-    
-    # Add rate limiting to main nginx config if not already present
-    if ! grep -q "limit_req_zone.*zone=api" /etc/nginx/nginx.conf; then
-        echo "    Adding rate limiting to nginx.conf..."
-        sed -i '/http {/a\    limit_req_zone \$binary_remote_addr zone=api:10m rate=10r/s;' /etc/nginx/nginx.conf
-    fi
-    
-    # Create Nginx site configuration
-    cat > /etc/nginx/sites-available/gridpane-manager-api << EOF
-server {
-    listen 80;
-    server_name $SERVER_ID.$MONITOR_DOMAIN;
-    
-    # Security headers
-    add_header X-Frame-Options DENY;
-    add_header X-Content-Type-Options nosniff;
-    add_header X-XSS-Protection "1; mode=block";
-    
-    # Rate limiting (applied per location)
-    limit_req zone=api burst=20 nodelay;
-    
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
+# Restart services to apply D-Bus and PolicyKit changes
+systemctl restart dbus
+systemctl restart polkit
+
+# Start the agent service
+if systemctl start "$SERVICE_NAME"; then
+    sleep 3
+    if systemctl is-active --quiet "$SERVICE_NAME"; then
+        log_info "✅ Holler Agent started successfully!"
         
-        # Timeouts
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }
-    
-    # Health check endpoint (no auth required)
-    location /health {
-        proxy_pass http://localhost:3000/health;
-        access_log off;
-    }
-}
-EOF
-    
-    # Enable the site
-    ln -sf /etc/nginx/sites-available/gridpane-manager-api /etc/nginx/sites-enabled/
-    
-    # Test and reload Nginx
-    if nginx -t; then
-        systemctl reload nginx
-        echo -e "${GREEN}✓ Nginx reverse proxy configured${NC}"
+        # Test the health endpoint
+        if curl -s -H "X-API-Key: $API_KEY" http://127.0.0.1:3001/health > /dev/null; then
+            log_info "✅ API health check passed"
+        else
+            log_warn "⚠️  API health check failed - agent may still be starting"
+        fi
     else
-        echo -e "${YELLOW}⚠ Nginx configuration test failed - please check manually${NC}"
+        log_error "❌ Agent failed to start"
+        log_info "Check logs: journalctl -u $SERVICE_NAME -n 20"
+        exit 1
     fi
-fi
-
-# Open firewall for backend port
-ufw allow 3000/tcp > /dev/null 2>&1
-echo -e "${GREEN}✓ Firewall configured (port 3000)${NC}"
-
-# Display completion message
-echo
-echo -e "${BLUE}Installation Complete!${NC}"
-echo "===================="
-
-if systemctl is-active --quiet $SERVICE_NAME; then
-    echo -e "${GREEN}✓ GridPane Manager Backend is running${NC}"
-    echo -e "${GREEN}✓ Service: $SERVICE_NAME${NC}"
-    echo -e "${GREEN}✓ Port: 3000${NC}"
-    
-    if [ -n "$SERVER_ID" ]; then
-        echo -e "${BLUE}✓ Server ID: $SERVER_ID${NC}"
-    fi
-    
-    if [ -n "$MONITOR_DOMAIN" ]; then
-        echo -e "${BLUE}✓ Monitor Domain: $MONITOR_DOMAIN${NC}"
-        echo -e "${BLUE}✓ SSL Endpoint: https://$SERVER_ID.$MONITOR_DOMAIN${NC}"
-    else
-        echo -e "${BLUE}✓ HTTP Endpoint: http://$(curl -s ifconfig.me 2>/dev/null || echo 'YOUR_SERVER_IP'):3000${NC}"
-    fi
-    
-    echo -e "${GREEN}✓ Logs: journalctl -u $SERVICE_NAME -f${NC}"
-    
-    # Display API key
-    API_KEY=$(grep API_KEY $CONFIG_DIR/.env | cut -d'=' -f2)
-    echo -e "${BLUE}✓ API Key: $API_KEY${NC}"
-    
-    echo
-    echo -e "${YELLOW}Next Steps:${NC}"
-    if [ -n "$MONITOR_DOMAIN" ] && [ -n "$SERVER_ID" ]; then
-        echo "1. Add DNS A record in CloudFlare for $MONITOR_DOMAIN:"
-        echo "   - Type: A"
-        echo "   - Name: $SERVER_ID"
-        echo "   - IPv4: $(curl -s ifconfig.me 2>/dev/null || echo 'YOUR_SERVER_IP')"
-        echo "   - Proxy: ON (orange cloud)"
-        echo "2. Test HTTPS endpoint: https://$SERVER_ID.$MONITOR_DOMAIN/api/health"
-        echo "3. Configure iOS app with API key: $API_KEY"
-    else
-        echo "1. MANUAL CONFIGURATION (Recommended):"
-        echo "   sudo nano /etc/gridpane-manager/.env"
-        echo "   Set: SERVER_ID=your-server-name"
-        echo "   Set: MONITOR_DOMAIN=yourdomain.com"
-        echo "   Set: BACKEND_URL=https://your-server-name.yourdomain.com"
-        echo "   Then: sudo systemctl restart gridpane-manager"
-        echo "2. Test HTTP endpoint: http://$(curl -s ifconfig.me 2>/dev/null || echo 'YOUR_SERVER_IP'):3000/api/health"
-        echo "3. Configure iOS app with API key: $API_KEY"
-    fi
-    
-    echo
-    echo -e "${BLUE}Manual Configuration (Production Recommended):${NC}"
-    echo "If you need to customize settings after installation:"
-    echo "1. Edit: sudo nano /etc/gridpane-manager/.env"
-    echo "2. Restart: sudo systemctl restart gridpane-manager"
-    echo "3. Verify: curl http://localhost:3000/api/health"
-    
-    echo
-    echo -e "${YELLOW}Service Management:${NC}"
-    echo "- Start:   systemctl start $SERVICE_NAME"
-    echo "- Stop:    systemctl stop $SERVICE_NAME"
-    echo "- Restart: systemctl restart $SERVICE_NAME"
-    echo "- Status:  systemctl status $SERVICE_NAME"
-    echo "- Logs:    journalctl -u $SERVICE_NAME -f"
-    
-    echo
-    echo -e "${GREEN}GridPane Manager Backend is ready!${NC}"
 else
-    echo -e "${RED}✗ Service failed to start${NC}"
-    echo -e "${YELLOW}Check logs: journalctl -u $SERVICE_NAME${NC}"
+    log_error "❌ Failed to start agent service"
+    log_info "Check logs: journalctl -u $SERVICE_NAME -n 20"
     exit 1
 fi
+
+echo ""
+echo "🎉 Installation Complete!"
+echo "========================"
+echo ""
+log_info "Holler Server Agent is now running on http://127.0.0.1:3001"
+log_info "API Key: $API_KEY"
+log_info "Service: $SERVICE_NAME"
+log_info "User: $SERVICE_USER"
+log_info "Directory: $INSTALL_DIR"
+log_info "Logs: $LOG_DIR"
+echo ""
+log_info "Test the agent:"
+echo "  curl -H \"X-API-Key: $API_KEY\" http://127.0.0.1:3001/health"
+echo ""
+log_info "Manage the service:"
+echo "  sudo systemctl status $SERVICE_NAME"
+echo "  sudo systemctl restart $SERVICE_NAME"
+echo "  sudo journalctl -u $SERVICE_NAME -f"
+echo ""
+log_info "Update the agent:"
+echo "  curl -sSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/update-agent.sh | sudo bash"
+echo ""
+log_info "Uninstall the agent:"
+echo "  curl -sSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/uninstall-agent.sh | sudo bash"
+echo ""

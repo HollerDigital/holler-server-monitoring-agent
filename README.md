@@ -1,28 +1,45 @@
-# GridPane Manager Backend API
+# Server Agent - Minimal HTTPS API for Server Control
 
-Apple-friendly, App Store-compliant backend service for the GridPane Manager iOS app. This Node.js API handles all privileged server operations, monitoring, and notifications without requiring direct SSH access from the mobile app.
+Secure, lightweight server agent that provides a minimal HTTPS API for server control operations. Designed as part of a distributed architecture where iOS apps communicate with a central orchestrator, which then securely relays commands to individual server agents.
 
-**🚀 MAJOR UPDATE:** Upgraded from Python Flask to Node.js Express for better iOS integration, enhanced security, and improved performance.
+**🔐 SECURITY-FIRST DESIGN:** Uses D-Bus for direct systemd communication, eliminating the need for sudo or shell command execution.
+
+## Architecture Overview
+
+This server agent is designed for a **centralized orchestrator architecture**:
+
+- **iOS App** ↔ **Central Orchestrator** ↔ **Server Agents** (this component)
+- **No direct SSH** required from mobile devices
+- **Secure communication** via private networks, VPN, or Cloudflare Tunnels
+- **Minimal attack surface** with localhost-only binding by default
 
 ## Features
 
-- **System Metrics**: CPU usage, memory usage, disk space, network statistics
-- **Service Control**: Restart services (nginx, MySQL, PHP-FPM) via GridPane CLI
-- **Cache Management**: Clear site and server-wide cache using GridPane tools
-- **REST API**: Secure JWT-authenticated endpoints for iOS app integration
-- **GridPane Integration**: Uses official GridPane CLI commands for all operations
-- **Systemd Service**: Runs as a background service with automatic startup
-- **Real-time Monitoring**: WebSocket support for live metrics (planned)
-- **Push Notifications**: Server alerts and status updates (planned)
-- **Lightweight**: Minimal resource footprint with Node.js efficiency
+- **🔒 Secure Service Control**: Direct D-Bus communication with systemd (no sudo required)
+- **🎯 Minimal API Surface**: Only essential endpoints for server management
+- **🛡️ Security Hardened**: Dedicated system user with locked-down permissions
+- **📊 Service Discovery**: Automatic detection of controllable services
+- **🔧 Service Management**: Start, stop, restart, reload services (nginx, mysql, php-fpm, redis, etc.)
+- **💾 Cache Operations**: GridPane CLI integration for cache clearing
+- **📝 Comprehensive Logging**: Full audit trail with request tracking
+- **⚡ High Performance**: D-Bus communication eliminates shell command overhead
+- **🚀 One-Line Install**: Fully automated setup with security configuration
 
 ## Installation
 
 ### Quick Install (Recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install-agent.sh | sudo bash
 ```
+
+This one-line installer will:
+- ✅ Install Node.js dependencies including D-Bus library
+- ✅ Create `svc-control` system user with minimal privileges
+- ✅ Configure D-Bus permissions for secure systemd communication
+- ✅ Set up systemd service with security hardening
+- ✅ Generate secure API key automatically
+- ✅ Start the agent on `127.0.0.1:3001`
 
 ### Manual Install
 
@@ -34,448 +51,334 @@ cd holler-server-monitoring-agent
 
 2. Run the installer:
 ```bash
-sudo ./install.sh
+sudo ./install-agent.sh
 ```
 
-### Manual Configuration (Recommended)
+### Configuration
 
-For production deployments, manual configuration provides better control:
-
-1. **Install using the automated script**:
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install.sh | sudo bash
-   ```
-
-2. **Configure environment manually**:
-   ```bash
-   sudo nano /etc/gridpane-manager/.env
-   ```
-   
-   Set your desired values:
-   ```bash
-   SERVER_ID=your-server-name
-   MONITOR_DOMAIN=yourdomain.com
-   BACKEND_URL=https://your-server-name.yourdomain.com
-   API_KEY=your-secure-api-key-here
-   ```
-
-3. **Restart the service**:
-   ```bash
-   sudo systemctl restart gridpane-manager
-   ```
-
-**Note**: Interactive prompts don't work with `curl | bash` (piped input). Manual configuration is preferred for production deployments.
-
-## CloudFlare DNS Configuration
-
-For the dynamic URL system to work with HTTPS and SSL, you need to configure CloudFlare DNS:
-
-### 1. Add DNS A Record
-
-In your CloudFlare dashboard for your monitor domain (e.g., `holler-monitor.app`):
-
-- **Type**: A
-- **Name**: `your-server-id` (e.g., `server1`)
-- **IPv4 address**: Your server's IP address
-- **Proxy status**: 🟠 **Proxied** (orange cloud) - **REQUIRED for SSL**
-- **TTL**: Auto
-
-### 2. SSL/TLS Configuration
-
-Ensure your CloudFlare SSL/TLS settings are:
-- **SSL/TLS encryption mode**: Full (strict) or Full
-- **Edge Certificates**: Universal SSL enabled
-- **Always Use HTTPS**: On (recommended)
-
-### 3. Dynamic URL Format
-
-Once configured, your backend will be accessible at:
-```
-https://your-server-id.holler-monitor.app
-```
-
-Example:
-```
-https://server1.holler-monitor.app
-```
-
-### 4. iOS App Configuration
-
-In the iOS app settings:
-1. Set your **Monitor Domain** (e.g., `holler-monitor.app`)
-2. Configure the **API Key** (generated during installation)
-3. The app will automatically construct dynamic URLs for each server
-
-## Quick Deployment Guide
-
-### Deploy to New Server (Recommended)
-
-For each new GridPane server, run this one-liner as root:
-
+After installation, the agent configuration is located at:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install.sh | sudo bash
+/opt/server-agent/.env
 ```
 
-**OR** use the manual clone method:
-
+Key configuration options:
 ```bash
-cd /tmp
-git clone https://github.com/HollerDigital/holler-server-monitoring-agent.git
-cd holler-server-monitoring-agent
-chmod +x install.sh
-sudo ./install.sh
+# Agent Identity
+AGENT_ID=agent-$(hostname)
+AGENT_NAME=Server Agent - $(hostname)
+
+# Network (localhost-only by default for security)
+AGENT_PORT=3001
+AGENT_HOST=127.0.0.1
+
+# Security
+AGENT_API_KEY=your-generated-api-key
+AGENT_ALLOWED_IPS=127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+
+# Logging
+LOG_LEVEL=info
+LOG_FILE=/var/log/server-agent/agent.log
+
+# GridPane Integration
+GRIDPANE_ENABLED=true
+GP_CLI_PATH=/usr/local/bin/gp
 ```
 
-### Post-Installation Steps
-
-1. **Set your API key** (replace `YOUR_SECURE_API_KEY` with your actual key):
-   ```bash
-   sudo systemctl edit gridpane-manager --full
-   # Add this line in the [Service] section:
-   # Environment="API_KEY=YOUR_SECURE_API_KEY"
-   ```
-
-2. **Restart the service**:
-   ```bash
-   sudo systemctl restart gridpane-manager
-   ```
-
-3. **Verify installation**:
-   ```bash
-   # Check service status
-   sudo systemctl status gridpane-manager
-   
-   # Test health endpoint
-   curl http://localhost:3000/health
-   
-   # Test authenticated endpoint
-   curl -H "X-API-Key: YOUR_SECURE_API_KEY" http://localhost:3000/api/metrics
-   ```
-
-4. **Open firewall** (if needed for external access):
-   ```bash
-   sudo ufw allow 3000/tcp
-   ```
-
-### Multi-Server Deployment
-
-To deploy to multiple servers efficiently:
-
-1. **Create a deployment script** (`deploy-to-servers.sh`):
-   ```bash
-   #!/bin/bash
-   
-   # List of your GridPane server IPs
-   SERVERS=(
-       "45.77.226.198"
-       "your.second.server.ip"
-       "your.third.server.ip"
-   )
-   
-   API_KEY="YOUR_SECURE_API_KEY_HERE"
-   
-   for server in "${SERVERS[@]}"; do
-       echo "🚀 Deploying to $server..."
-       
-       # Deploy the agent
-       ssh root@$server 'curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install.sh | bash'
-       
-       # Set API key
-       ssh root@$server "systemctl edit gridpane-manager --full" <<EOF
-   [Unit]
-   Description=GridPane Manager Backend API
-   After=network.target
-   
-   [Service]
-   Type=simple
-   User=holler-app-test
-   Group=holler-app-test
-   WorkingDirectory=/opt/gridpane-manager
-   ExecStart=/usr/bin/node src/server.js
-   Restart=always
-   RestartSec=10
-   Environment="NODE_ENV=production"
-   Environment="PORT=3000"
-   Environment="API_KEY=$API_KEY"
-   StandardOutput=journal
-   StandardError=journal
-   SyslogIdentifier=gridpane-manager
-   
-   [Install]
-   WantedBy=multi-user.target
-   EOF
-       
-       # Restart service
-       ssh root@$server 'systemctl restart gridpane-manager'
-       
-       # Verify deployment
-       echo "✅ Testing $server..."
-       ssh root@$server 'curl -s http://localhost:3000/health | jq .'
-       
-       echo "✅ $server deployment complete!"
-       echo "---"
-   done
-   
-   echo "🎉 All servers deployed successfully!"
-   ```
-
-2. **Make it executable and run**:
-   ```bash
-   chmod +x deploy-to-servers.sh
-   ./deploy-to-servers.sh
-   ```
-
-### CloudFlare Setup (Production)
-
-For production deployment with SSL/HTTPS (required for App Store compliance):
-
-#### 1. Domain Setup
-
-Create subdomains for each server in CloudFlare:
-- `server1-api.yourdomain.com` → Server 1 IP
-- `server2-api.yourdomain.com` → Server 2 IP
-- `server3-api.yourdomain.com` → Server 3 IP
-
-#### 2. CloudFlare DNS Records
-
-Add A records for each server:
-```
-Type: A
-Name: server1-api
-Content: 45.77.226.198
-Proxy: ✅ Proxied (Orange Cloud)
-TTL: Auto
-```
-
-#### 3. CloudFlare SSL Settings
-
-1. **SSL/TLS Mode**: Set to "Full (strict)" or "Full"
-2. **Always Use HTTPS**: Enable
-3. **Minimum TLS Version**: 1.2
-4. **Automatic HTTPS Rewrites**: Enable
-
-#### 4. Nginx Reverse Proxy Setup
-
-On each GridPane server, create an Nginx configuration:
-
+To modify configuration:
 ```bash
-# Create Nginx site configuration
-sudo nano /etc/nginx/sites-available/gridpane-manager-api
+sudo nano /opt/server-agent/.env
+sudo systemctl restart server-agent
 ```
 
-**First, add rate limiting to the main nginx configuration:**
+## API Endpoints
+
+The server agent provides a minimal set of endpoints for server control operations.
+
+### Authentication
+
+All protected endpoints require an API key in the `X-API-Key` header:
 ```bash
-# Add this to /etc/nginx/nginx.conf in the http block
-sudo nano /etc/nginx/nginx.conf
+curl -H "X-API-Key: your-api-key" http://127.0.0.1:3001/api/endpoint
 ```
 
-Add this line inside the `http` block (before any `server` blocks):
-```nginx
-limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+### Public Endpoints (No Authentication)
+
+#### Health Check
+```bash
+curl http://127.0.0.1:3001/health
 ```
 
-**Then create the site configuration:**
-```nginx
-server {
-    listen 80;
-    listen 443 ssl http2;
-    server_name server1-api.yourdomain.com;  # Change for each server
-    
-    # SSL Configuration (GridPane auto-manages SSL)
-    ssl_certificate /etc/letsencrypt/live/server1-api.yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/server1-api.yourdomain.com/privkey.pem;
-    
-    # Security headers
-    add_header X-Frame-Options DENY;
-    add_header X-Content-Type-Options nosniff;
-    add_header X-XSS-Protection "1; mode=block";
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    
-    # Rate limiting (applied per location)
-    limit_req zone=api burst=20 nodelay;
-    
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-        
-        # Timeouts
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }
-    
-    # Health check endpoint (no auth required)
-    location /health {
-        proxy_pass http://127.0.0.1:3000/health;
-        access_log off;
-    }
+Response:
+```json
+{
+  "status": "healthy",
+  "agent": {
+    "id": "agent-hostname",
+    "name": "Server Agent - hostname",
+    "version": "2.1.0",
+    "mode": "agent"
+  },
+  "timestamp": "2025-08-11T02:20:45.903Z",
+  "uptime": 8.421862214
 }
 ```
 
-#### 5. Enable the Site
-
+#### Agent Information
 ```bash
-# Enable the site
-sudo ln -s /etc/nginx/sites-available/gridpane-manager-api /etc/nginx/sites-enabled/
-
-# Test Nginx configuration
-sudo nginx -t
-
-# Reload Nginx
-sudo systemctl reload nginx
+curl http://127.0.0.1:3001/agent/info
 ```
 
-#### 6. SSL Certificate Setup
+### Protected Endpoints (API Key Required)
 
-Use GridPane's built-in SSL management or manually with Let's Encrypt:
-
+#### Service Status
+Get status of all controllable services:
 ```bash
-# Using GridPane CLI (recommended)
-gp site server1-api.yourdomain.com -ssl-enable
-
-# OR manually with certbot
-sudo certbot --nginx -d server1-api.yourdomain.com
+curl -H "X-API-Key: your-api-key" http://127.0.0.1:3001/api/control/services/status
 ```
 
-#### 7. Update iOS App Configuration
-
-Update your iOS app to use HTTPS endpoints:
-```swift
-// In BackendAPIService.swift
-let baseURL = "https://server1-api.yourdomain.com"
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "services": {
+      "nginx": { "active": true, "enabled": true, "status": "active" },
+      "mysql": { "active": true, "enabled": true, "status": "active" },
+      "php8.1-fpm": { "active": true, "enabled": true, "status": "active" }
+    },
+    "aliases": {
+      "web": { "services": ["nginx"], "active": true, "activeServices": ["nginx"] },
+      "database": { "services": ["mysql"], "active": true, "activeServices": ["mysql"] }
+    },
+    "method": "dbus",
+    "timestamp": "2025-08-11T02:32:35.133Z"
+  }
+}
 ```
 
-#### 8. CloudFlare Security Rules (Optional)
-
-Add security rules in CloudFlare:
-
-1. **Rate Limiting**: 100 requests per minute per IP
-2. **Geographic Restrictions**: Block unwanted countries
-3. **Bot Fight Mode**: Enable
-4. **DDoS Protection**: Automatic
-
-#### 9. Monitoring and Alerts
-
-Set up CloudFlare monitoring:
-- **Health Checks**: Monitor `/health` endpoint
-- **Email Alerts**: Notify on downtime
-- **Analytics**: Track API usage
-
-#### 10. Testing Production Setup
-
+#### Service Control
+Restart specific services:
 ```bash
-# Test HTTPS endpoint
-curl https://server1-api.yourdomain.com/health
+# Restart nginx
+curl -X POST -H "X-API-Key: your-api-key" http://127.0.0.1:3001/api/control/restart/nginx
 
-# Test authenticated endpoint
-curl -H "X-API-Key: YOUR_API_KEY" \
-  https://server1-api.yourdomain.com/api/metrics
+# Restart MySQL/MariaDB
+curl -X POST -H "X-API-Key: your-api-key" http://127.0.0.1:3001/api/control/restart/mysql
 
-# Test SSL grade
-ssl-checker server1-api.yourdomain.com
+# Restart PHP-FPM (auto-detects version)
+curl -X POST -H "X-API-Key: your-api-key" http://127.0.0.1:3001/api/control/restart/php-fpm
+
+# Restart Redis
+curl -X POST -H "X-API-Key: your-api-key" http://127.0.0.1:3001/api/control/restart/redis
+```
+
+#### Generic Service Control
+```bash
+# Generic service control: /api/control/service/{action}/{service}
+curl -X POST -H "X-API-Key: your-api-key" http://127.0.0.1:3001/api/control/service/restart/nginx
+curl -X POST -H "X-API-Key: your-api-key" http://127.0.0.1:3001/api/control/service/start/redis-server
+curl -X POST -H "X-API-Key: your-api-key" http://127.0.0.1:3001/api/control/service/stop/memcached
+```
+
+#### Cache Operations (GridPane Integration)
+```bash
+# Clear all site caches
+curl -X POST -H "X-API-Key: your-api-key" http://127.0.0.1:3001/api/control/cache/clear
+
+# Clear specific site cache
+curl -X POST -H "X-API-Key: your-api-key" -H "Content-Type: application/json" \
+  -d '{"site": "example.com"}' http://127.0.0.1:3001/api/control/cache/clear-site
+```
+
+## Security Architecture
+
+### D-Bus Communication
+The agent uses **D-Bus** for secure communication with systemd, eliminating the need for sudo or shell command execution:
+
+- ✅ **Direct systemd communication** via D-Bus interface
+- ✅ **No sudo required** - runs with minimal privileges
+- ✅ **No shell command injection** risks
+- ✅ **Comprehensive audit logging** with request tracking
+- ✅ **Service validation** - only allowed services can be controlled
+
+### System User Security
+The agent runs as a dedicated `svc-control` system user with:
+
+- **Minimal privileges** - no shell access by default
+- **D-Bus permissions** - only for systemd communication
+- **Locked-down sudoers** - only specific systemctl commands (fallback)
+- **Isolated environment** - separate user/group from other services
+
+### Network Security
+- **Localhost binding** - `127.0.0.1:3001` by default
+- **API key authentication** - secure token-based access
+- **Rate limiting** - prevents abuse
+- **Private network ready** - designed for VPN/tunnel communication
+
+## Service Management
+
+### Supported Services
+The agent can control these services via D-Bus:
+
+- **Web Servers**: nginx, apache2
+- **Databases**: mysql, mariadb
+- **PHP**: php8.1-fpm, php8.2-fpm, php8.3-fpm (auto-detection)
+- **Cache**: redis-server, memcached
+- **Queue Workers**: supervisor
+- **Custom services** can be added to configuration
+
+### Service Aliases
+Smart service grouping for easier management:
+
+- **`web`** → nginx, apache2
+- **`database`** → mysql, mariadb  
+- **`php-fpm`** → php8.1-fpm, php8.2-fpm, php8.3-fpm
+- **`cache`** → redis-server, memcached
+
+## Management Commands
+
+### Service Control
+```bash
+# Check service status
+sudo systemctl status server-agent
+
+# View logs
+sudo journalctl -u server-agent -f
+
+# Restart agent
+sudo systemctl restart server-agent
+
+# Stop agent
+sudo systemctl stop server-agent
+```
+
+### Configuration Management
+```bash
+# Edit configuration
+sudo nano /opt/server-agent/.env
+
+# View current API key
+sudo grep AGENT_API_KEY /opt/server-agent/.env
+
+# Check D-Bus permissions
+sudo cat /etc/dbus-1/system.d/server-agent.conf
+```
+
+## Requirements
+
+- **Operating System**: Ubuntu/Debian-based Linux distribution
+- **Node.js**: 16.x LTS or higher (automatically installed)
+- **systemd**: For service management
+- **D-Bus**: For secure systemd communication (pre-installed on most systems)
+- **Root Access**: Required for installation and system user setup
+
+### Optional Requirements
+- **GridPane CLI**: For cache clearing operations (`/usr/local/bin/gp`)
+- **nginx/apache2**: For web server control
+- **mysql/mariadb**: For database server control
+- **php-fpm**: For PHP process management
+- **redis/memcached**: For cache server control
 
 ## Troubleshooting
 
-### GridPane-Specific Issues
+### Installation Issues
 
-**Node.js 12.x Upgrade Conflict (Very Common):**
-GridPane servers come with Node.js 12.x by default, which conflicts with Node.js 18.x installation.
-
+**Node.js Version Conflicts:**
 ```bash
-# Error: trying to overwrite '/usr/include/node/common.gypi'
-# Solution: Remove conflicting packages first
-sudo apt-get remove --purge nodejs npm libnode-dev nodejs-doc
-sudo apt-get autoremove -y
-sudo apt-get autoclean
+# Remove old Node.js versions
+sudo apt remove nodejs npm
+sudo apt autoremove
 
-# Then install Node.js 18.x
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt-get update
+# Install Node.js 18.x LTS
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
 # Verify installation
-node --version  # Should show v18.x.x
+node --version  # Should be v18.x or higher
 ```
 
-**If the installer fails on GridPane:**
+**Permission Errors:**
 ```bash
-# Manual cleanup and installation
-sudo systemctl stop gridpane-manager 2>/dev/null || true
-sudo apt-get remove --purge nodejs* npm* libnode* 2>/dev/null || true
-sudo apt-get autoremove -y
-sudo apt-get autoclean
-sudo dpkg --configure -a
+# Ensure running as root
+sudo su -
 
-# Fresh Node.js 18.x installation
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt-get update
-sudo apt-get install -y nodejs
-
-# Verify and continue with agent installation
-node --version
-npm --version
-
-# Re-run the installer
-curl -fsSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install.sh | sudo bash
+# Re-run installation
+curl -sSL https://raw.githubusercontent.com/HollerDigital/holler-server-monitoring-agent/main/install-agent.sh | bash
 ```
 
-### Common Issues
+### Service Issues
 
-## Installation
+**Agent Won't Start:**
+```bash
+# Check service status
+sudo systemctl status server-agent
 
-### Manual Installation
+# View detailed logs
+sudo journalctl -u server-agent -n 50
 
-1. Install Node.js 18.x LTS:
-   ```bash
-   curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-   sudo apt-get install -y nodejs
-   ```
+# Check D-Bus permissions
+sudo cat /etc/dbus-1/system.d/server-agent.conf
+```
 
-2. Create service user and directories:
-   ```bash
-   sudo useradd --system --shell /bin/false gridpane-manager
-   sudo mkdir -p /opt/gridpane-manager /var/log/gridpane-manager /etc/gridpane-manager
-   ```
+**D-Bus Permission Errors:**
+```bash
+# Restart D-Bus service
+sudo systemctl restart dbus
 
-3. Copy application files and install dependencies:
-   ```bash
-   sudo cp -r . /opt/gridpane-manager/
-   cd /opt/gridpane-manager
-   sudo -u gridpane-manager npm install --production
-   ```
+# Restart agent
+sudo systemctl restart server-agent
+```
 
-4. Configure environment and start service:
-   ```bash
-   sudo cp .env.example /etc/gridpane-manager/.env
-   sudo systemctl enable gridpane-manager
-   sudo systemctl start gridpane-manager
-   ```
+**API Connection Issues:**
+```bash
+# Verify agent is listening
+sudo netstat -tlnp | grep 3001
 
-## Configuration
+# Test health endpoint
+curl http://127.0.0.1:3001/health
 
-The backend service runs on port 3000 by default and uses API key authentication for all endpoints except health checks. Configuration is managed through environment variables in `/etc/gridpane-manager/.env`.
+# Check API key
+sudo grep AGENT_API_KEY /opt/server-agent/.env
+```
 
-### Environment Variables
+## Uninstallation
+
+To completely remove the server agent:
 
 ```bash
-# Server Configuration
-PORT=3000
-NODE_ENV=production
+# Stop and disable service
+sudo systemctl stop server-agent
+sudo systemctl disable server-agent
 
-# Authentication
-API_KEY=your-secure-api-key-here
+# Remove service files
+sudo rm -f /etc/systemd/system/server-agent.service
+sudo rm -f /etc/dbus-1/system.d/server-agent.conf
 
-# GridPane Integration
-GRIDPANE_CLI_PATH=/usr/local/bin/gp
+# Remove application files
+sudo rm -rf /opt/server-agent
+sudo rm -rf /var/log/server-agent
 
-# Monitoring
+# Remove system user
+sudo userdel svc-control
+sudo groupdel svc-control
+
+# Reload systemd
+sudo systemctl daemon-reload
+sudo systemctl restart dbus
+```
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Support
+
+For support and issues, please create an issue in this repository.
+
+---
+
+**🔐 Security Note**: This agent is designed for localhost-only operation by default. For production deployments with external access, ensure proper network security (VPN, private networks, or secure tunnels) and consider enabling HTTPS with proper SSL certificates.
+
 METRICS_INTERVAL=30000
 ALERT_THRESHOLDS_CPU=80
 ALERT_THRESHOLDS_MEMORY=85
