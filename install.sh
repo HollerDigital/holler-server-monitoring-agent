@@ -102,18 +102,23 @@ npm install --production --no-audit --no-fund
 
 log_step "Setting up system user and permissions..."
 
-# Create system group and user
-if ! getent group "$SERVICE_USER" &>/dev/null; then
-    log_info "Creating system group: $SERVICE_USER"
-    groupadd --system "$SERVICE_USER"
+# Clean up any existing user/group to ensure fresh creation
+if id "$SERVICE_USER" &>/dev/null; then
+    log_info "Removing existing user: $SERVICE_USER"
+    userdel "$SERVICE_USER" 2>/dev/null || true
 fi
 
-if ! id "$SERVICE_USER" &>/dev/null; then
-    log_info "Creating system user: $SERVICE_USER"
-    useradd --system --gid "$SERVICE_USER" --shell /bin/false --home-dir "$INSTALL_DIR" --no-create-home "$SERVICE_USER"
-else
-    log_info "System user $SERVICE_USER already exists"
+if getent group "$SERVICE_USER" &>/dev/null; then
+    log_info "Removing existing group: $SERVICE_USER"
+    groupdel "$SERVICE_USER" 2>/dev/null || true
 fi
+
+# Create system group and user fresh
+log_info "Creating system group: $SERVICE_USER"
+groupadd --system "$SERVICE_USER"
+
+log_info "Creating system user: $SERVICE_USER"
+useradd --system --gid "$SERVICE_USER" --shell /bin/false --home-dir "$INSTALL_DIR" --no-create-home "$SERVICE_USER"
 
 # Set ownership and permissions
 chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
