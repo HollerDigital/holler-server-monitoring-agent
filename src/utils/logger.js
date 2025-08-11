@@ -1,6 +1,6 @@
 /**
  * Winston Logger Configuration
- * Centralized logging for the GridPane Manager Backend
+ * Centralized logging for the Server Agent
  */
 
 const winston = require('winston');
@@ -8,7 +8,7 @@ const DailyRotateFile = require('winston-daily-rotate-file');
 const path = require('path');
 
 // Use system log directory (created during installation)
-const logDir = process.env.LOG_DIR || '/var/log/gridpane-manager';
+const logDir = process.env.LOG_DIR || '/var/log/server-agent';
 
 // Define log format
 const logFormat = winston.format.combine(
@@ -37,7 +37,7 @@ const transports = [
 
   // File transport for all logs
   new DailyRotateFile({
-    filename: path.join(logDir, 'gridpane-manager-%DATE%.log'),
+    filename: path.join(logDir, 'server-agent-%DATE%.log'),
     datePattern: 'YYYY-MM-DD',
     maxSize: process.env.LOG_MAX_SIZE || '20m',
     maxFiles: process.env.LOG_MAX_FILES || '14d',
