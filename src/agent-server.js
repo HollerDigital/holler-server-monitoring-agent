@@ -130,6 +130,7 @@ app.get('/agent/info', (req, res) => {
 app.use('/api/control', authenticateAgent, controlRoutes);
 app.use('/api/monitoring', authenticateAgent, monitoringRoutes);
 app.use('/api/diagnostics', authenticateAgent, diagnosticsRoutes);
+app.use('/api/wordpress', authenticateAgent, require('./routes/wordpress'));
 
 // Agent-specific endpoints
 app.get('/api/agent/status', authenticateAgent, (req, res) => {
